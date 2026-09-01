@@ -12,6 +12,7 @@ export default function AuthModal() {
     setIsAuthModalOpen, 
     pendingAddToCart, 
     setPendingAddToCart, 
+    addPendingProductAfterLogin,
     addToCart, 
     setCartDrawerOpen 
   } = useCart();
@@ -60,9 +61,8 @@ export default function AuthModal() {
         setIsAuthModalOpen(false);
 
         // If there was a pending item from "Add to Bag", add it to cart now!
-        if (pendingAddToCart && pendingAddToCart.product) {
-          addToCart(pendingAddToCart.product, pendingAddToCart.qty || 1);
-          setPendingAddToCart(null);
+        if (pendingAddToCart && pendingAddToCart.product && typeof addPendingProductAfterLogin === 'function') {
+          addPendingProductAfterLogin(user);
         }
 
         // Open Cart Drawer

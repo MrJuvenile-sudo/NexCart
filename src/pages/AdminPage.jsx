@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   FiGrid, FiBox, FiClipboard, FiUsers, FiDollarSign, FiPlus, 
   FiTrash2, FiAlertTriangle, FiX, FiLock, FiSliders, FiBell, 
-  FiGift, FiImage, FiCheck, FiEye, FiEyeOff, FiHome, FiLogOut, 
-  FiShield, FiMapPin
+  FiGift, FiImage, FiCheck, FiEye, FiEyeOff, FiLogOut, 
+  FiShield, FiMapPin, FiEdit3, FiSearch, FiFilter, 
+  FiExternalLink, FiTrendingUp, 
+  FiChevronLeft, FiChevronRight, FiArrowUpRight, 
+  FiLayers
 } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -31,23 +34,96 @@ export default function AdminPage() {
     updateStoreInfo,
     sponsoredIds,
     toggleSponsored,
-    setIsPromoPopupOpen
+    setIsPromoPopupOpen,
+    homePageConfig,
+    updateHomePageConfig
   } = useCart();
 
   const navigate = useNavigate();
-  const [adminTab, setAdminTab] = useState('dashboard');
-  const [addProductModal, setAddProductModal] = useState(false);
 
+  // Active Admin Tabs: dashboard, products, categories, hero-banners, store-config, promo-popup, homepage-sections, orders
+  const [adminTab, setAdminTab] = useState('dashboard');
+
+  // Modals & Selectors State
+  const [addProductModal, setAddProductModal] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [selectedOrderDetails, setSelectedOrderDetails] = useState(null);
+  
+  // Product Catalog Filters & Pagination
+  const [productSearch, setProductSearch] = useState('');
+  const [productCategoryFilter, setProductCategoryFilter] = useState('All');
+  const [productStockFilter, setProductStockFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 15;
+
+  // Orders Filter
+  const [orderStatusFilter, setOrderStatusFilter] = useState('All');
+
+  // New Category State
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatIcon, setNewCatIcon] = useState('✨');
+  const [newCatSlug, setNewCatSlug] = useState('');
+
+  // Add Product Form State
   const [newProd, setNewProd] = useState({
     name: '',
     category: 'Electronics',
     brand: '',
+    sku: '',
     price: '',
     old: '',
-    stock: 15,
+    stock: 25,
     description: '',
-    image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=700&q=80'
+    image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=700&q=80',
+    specs: {
+      Warranty: '1 Year Manufacturer Warranty',
+      Authenticity: '100% Genuine Guaranteed'
+    }
   });
+
+  // Edit Product Form State
+  const [editForm, setEditForm] = useState(null);
+
+  const safeProducts = useMemo(() => Array.isArray(products) ? products.filter(Boolean) : [], [products]);
+  const safeOrders = useMemo(() => Array.isArray(orders) ? orders.filter(Boolean) : [], [orders]);
+  const safeBanners = useMemo(() => Array.isArray(heroBanners) ? heroBanners.filter(Boolean) : [], [heroBanners]);
+  const safeTaxonomies = useMemo(() => Array.isArray(taxonomies) ? taxonomies.filter(Boolean) : [], [taxonomies]);
+  const safeSponsoredIds = useMemo(() => Array.isArray(sponsoredIds) ? sponsoredIds : [], [sponsoredIds]);
+
+  const totalRevenue = useMemo(() => safeOrders.reduce((sum, o) => sum + (o.total || 0), 0), [safeOrders]);
+  const lowStockProducts = useMemo(() => safeProducts.filter(p => (p.stock || 0) < 15), [safeProducts]);
+
+  // Filter Products for Catalog Table
+  const filteredProducts = useMemo(() => {
+    return safeProducts.filter(p => {
+      const matchesSearch = !productSearch || 
+        (p.name && p.name.toLowerCase().includes(productSearch.toLowerCase())) ||
+        (p.brand && p.brand.toLowerCase().includes(productSearch.toLowerCase())) ||
+        (p.sku && p.sku.toLowerCase().includes(productSearch.toLowerCase()));
+
+      const matchesCat = productCategoryFilter === 'All' || p.category === productCategoryFilter;
+
+      let matchesStock = true;
+      if (productStockFilter === 'in-stock') matchesStock = (p.stock || 0) > 10;
+      else if (productStockFilter === 'low-stock') matchesStock = (p.stock || 0) > 0 && (p.stock || 0) <= 10;
+      else if (productStockFilter === 'out-of-stock') matchesStock = (p.stock || 0) <= 0;
+
+      return matchesSearch && matchesCat && matchesStock;
+    });
+  }, [safeProducts, productSearch, productCategoryFilter, productStockFilter]);
+
+  // Paginated Products
+  const totalPages = Math.ceil(filteredProducts.length / pageSize) || 1;
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredProducts.slice(start, start + pageSize);
+  }, [filteredProducts, currentPage, pageSize]);
+
+  // Filter Orders
+  const filteredOrders = useMemo(() => {
+    if (orderStatusFilter === 'All') return safeOrders;
+    return safeOrders.filter(o => o.status === orderStatusFilter);
+  }, [safeOrders, orderStatusFilter]);
 
   if (!user || user.role !== 'admin') {
     return (
@@ -71,32 +147,6 @@ export default function AdminPage() {
     );
   }
 
-  const safeProducts = Array.isArray(products) ? products.filter(Boolean) : [];
-  const safeOrders = Array.isArray(orders) ? orders.filter(Boolean) : [];
-  const safeBanners = Array.isArray(heroBanners) ? heroBanners.filter(Boolean) : [];
-  const safeTaxonomies = Array.isArray(taxonomies) ? taxonomies.filter(Boolean) : [];
-  const safeSponsoredIds = Array.isArray(sponsoredIds) ? sponsoredIds : [];
-
-  const totalRevenue = safeOrders.reduce((sum, o) => sum + (o.total || 0), 0);
-  const lowStockProducts = safeProducts.filter(p => p.stock < 15);
-
-  const handleAddProductSubmit = (e) => {
-    e.preventDefault();
-    if (!newProd.name || !newProd.price) return;
-    addProduct(newProd);
-    setAddProductModal(false);
-    setNewProd({
-      name: '',
-      category: 'Electronics',
-      brand: '',
-      price: '',
-      old: '',
-      stock: 15,
-      description: '',
-      image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=700&q=80'
-    });
-  };
-
   const formatPrice = (val) => {
     if (typeof val === 'number' && !isNaN(val)) {
       return val.toLocaleString('en-IN');
@@ -109,12 +159,102 @@ export default function AdminPage() {
     navigate('/login');
   };
 
+  // Add Product Submit
+  const handleAddProductSubmit = (e) => {
+    e.preventDefault();
+    if (!newProd.name || !newProd.price) return;
+    
+    const formatted = {
+      ...newProd,
+      price: Number(newProd.price),
+      old: newProd.old ? Number(newProd.old) : Math.round(Number(newProd.price) * 1.3),
+      stock: Number(newProd.stock) || 20,
+      sku: newProd.sku || `NC-${(newProd.category || 'GEN').substring(0, 2).toUpperCase()}-${Date.now().toString().slice(-4)}`
+    };
+
+    addProduct(formatted);
+    setAddProductModal(false);
+    setNewProd({
+      name: '',
+      category: 'Electronics',
+      brand: '',
+      sku: '',
+      price: '',
+      old: '',
+      stock: 25,
+      description: '',
+      image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=700&q=80',
+      specs: {
+        Warranty: '1 Year Manufacturer Warranty',
+        Authenticity: '100% Genuine Guaranteed'
+      }
+    });
+  };
+
+  // Open Edit Product Modal
+  const openEditModal = (prod) => {
+    setEditingProduct(prod);
+    setEditForm({
+      name: prod.name || '',
+      category: prod.category || 'Fashion',
+      brand: prod.brand || '',
+      sku: prod.sku || '',
+      price: prod.price || '',
+      old: prod.old || '',
+      stock: prod.stock ?? 10,
+      description: prod.description || '',
+      image: prod.image || '',
+      rating: prod.rating || 4.5,
+      reviews: prod.reviews || 24
+    });
+  };
+
+  // Save Edit Product
+  const handleSaveEditProduct = (e) => {
+    e.preventDefault();
+    if (!editingProduct || !editForm) return;
+
+    updateProduct(editingProduct.id, {
+      ...editForm,
+      price: Number(editForm.price),
+      old: Number(editForm.old),
+      stock: Number(editForm.stock)
+    });
+
+    setEditingProduct(null);
+    setEditForm(null);
+  };
+
+  // Inline Quick Stock Edit
+  const handleQuickStockDelta = (prodId, delta) => {
+    const p = safeProducts.find(item => item.id === prodId);
+    if (!p) return;
+    const newStock = Math.max(0, (p.stock || 0) + delta);
+    updateProduct(prodId, { stock: newStock });
+  };
+
+  // Add Custom Category
+  const handleAddCategory = (e) => {
+    e.preventDefault();
+    if (!newCatName) return;
+    const catId = newCatSlug || newCatName.toLowerCase().replace(/\s+/g, '-');
+    updateTaxonomy(catId, {
+      name: newCatName,
+      icon: newCatIcon || '✨',
+      visible: true
+    });
+    setNewCatName('');
+    setNewCatSlug('');
+    setNewCatIcon('✨');
+  };
+
   return (
     <div className="admin-workspace-wrapper">
+      {/* 1. TOP FLUSH COMMAND HEADER */}
       <header className="custom-admin-header">
         <div className="admin-header-left">
           <Link to="/" className="admin-header-logo">
-            <img src="/logo.png" alt="NexCart Logo" onError={(e) => { e.target.src = '/favicon.ico'; }} />
+            <div className="admin-logo-mark">⚡</div>
             <div className="admin-brand-text">
               <span>Nex<b>Cart</b></span>
               <small>ADMIN CONTROL CENTER</small>
@@ -123,62 +263,133 @@ export default function AdminPage() {
           <span className="live-status-pill">
             <span className="pulse-dot" /> Live System Synchronized
           </span>
+          <div className="admin-header-quick-stats">
+            <span className="quick-stat-badge">
+              <strong>{safeProducts.length}</strong> Products
+            </span>
+            <span className="quick-stat-badge">
+              <strong>{safeOrders.length}</strong> Orders
+            </span>
+            <span className="quick-stat-badge highlight">
+              <strong>₹{formatPrice(totalRevenue)}</strong> Revenue
+            </span>
+          </div>
         </div>
 
         <div className="admin-header-actions">
-          <Link to="/" className="admin-header-btn secondary">
-            <FiHome /> View Storefront
+          <Link to="/" className="admin-header-btn secondary" target="_blank" rel="noreferrer" title="Open Storefront in New Tab">
+            <FiExternalLink /> View Storefront
           </Link>
           <div className="admin-profile-badge">
             <FiShield /> <span>{user.name}</span>
           </div>
-          <button className="admin-header-btn danger" onClick={handleAdminSignOut}>
+          <button className="admin-header-btn danger" onClick={handleAdminSignOut} title="Sign Out of Administrator Account">
             <FiLogOut /> Exit Admin
           </button>
         </div>
       </header>
 
+      {/* 2. ADMIN WORKSPACE MAIN GRID */}
       <div className="admin-dashboard-container">
         <div className="admin-layout-grid">
+          {/* SIDEBAR NAVIGATION */}
           <aside className="admin-sidebar">
+            <div className="sidebar-group-title">MANAGEMENT CONSOLE</div>
+            
             <button 
               className={adminTab === 'dashboard' ? 'active' : ''}
               onClick={() => setAdminTab('dashboard')}
             >
-              <FiGrid /> Analytics Dashboard
+              <FiGrid /> <span>Analytics & Metrics</span>
             </button>
+
+            <button 
+              className={adminTab === 'products' ? 'active' : ''}
+              onClick={() => { setAdminTab('products'); setCurrentPage(1); }}
+            >
+              <FiBox /> <span>Catalog Manager</span>
+              <span className="sidebar-count-chip">{safeProducts.length}</span>
+            </button>
+
+            <button 
+              className={adminTab === 'categories' ? 'active' : ''}
+              onClick={() => setAdminTab('categories')}
+            >
+              <FiLayers /> <span>Categories (15)</span>
+              <span className="sidebar-count-chip">{safeTaxonomies.length}</span>
+            </button>
+
+            <button 
+              className={adminTab === 'hero-banners' ? 'active' : ''}
+              onClick={() => setAdminTab('hero-banners')}
+            >
+              <FiImage /> <span>Hero Carousel Studio</span>
+              <span className="sidebar-count-chip">{safeBanners.length}</span>
+            </button>
+
             <button 
               className={adminTab === 'store-config' ? 'active' : ''}
               onClick={() => setAdminTab('store-config')}
             >
-              <FiSliders /> ⚡ Live Store Config
+              <FiSliders /> <span>Header Ticker & Store Info</span>
             </button>
+
             <button 
-              className={adminTab === 'products' ? 'active' : ''}
-              onClick={() => setAdminTab('products')}
+              className={adminTab === 'promo-popup' ? 'active' : ''}
+              onClick={() => setAdminTab('promo-popup')}
             >
-              <FiBox /> Catalog ({safeProducts.length})
+              <FiGift /> <span>Deals & Pop-up Campaign</span>
             </button>
+
+            <button 
+              className={adminTab === 'homepage-sections' ? 'active' : ''}
+              onClick={() => setAdminTab('homepage-sections')}
+            >
+              <FiEye /> <span>Homepage Sections Layout</span>
+            </button>
+
             <button 
               className={adminTab === 'orders' ? 'active' : ''}
               onClick={() => setAdminTab('orders')}
             >
-              <FiClipboard /> Orders ({safeOrders.length})
+              <FiClipboard /> <span>Customer Orders</span>
+              <span className="sidebar-count-chip">{safeOrders.length}</span>
             </button>
+
+            <div className="sidebar-footer-card">
+              <div className="sidebar-footer-title">NexCart Engine v2.0</div>
+              <div className="sidebar-footer-sub">Real-Time Sync Active</div>
+            </div>
           </aside>
 
+          {/* MAIN CONTENT AREA */}
           <main className="admin-main-content">
-            {/* TAB 1: DASHBOARD OVERVIEW */}
+            
+            {/* ========================================================
+               TAB 1: ANALYTICS & METRICS DASHBOARD
+               ======================================================== */}
             {adminTab === 'dashboard' && (
               <div className="admin-tab-view">
-                <h1>Store Metrics Overview</h1>
+                <div className="admin-view-header">
+                  <div>
+                    <h1>Store Metrics & Insights</h1>
+                    <p>Live synchronization overview across orders, catalog items, and customer activity.</p>
+                  </div>
+                  <div className="header-action-group">
+                    <button className="cta-btn primary" onClick={() => setAddProductModal(true)}>
+                      <FiPlus /> Add New Product
+                    </button>
+                  </div>
+                </div>
 
+                {/* 4 Top Metric Cards */}
                 <div className="metrics-cards-grid">
                   <div className="metric-card">
                     <div className="metric-icon green"><FiDollarSign /></div>
                     <div className="metric-info">
                       <span className="label">Total Store Revenue</span>
                       <strong className="value">₹{formatPrice(totalRevenue)}</strong>
+                      <span className="trend-text positive"><FiTrendingUp /> +24.8% this month</span>
                     </div>
                   </div>
 
@@ -187,46 +398,95 @@ export default function AdminPage() {
                     <div className="metric-info">
                       <span className="label">Total Orders Placed</span>
                       <strong className="value">{safeOrders.length}</strong>
+                      <span className="trend-text neutral">100% fulfillment rate</span>
                     </div>
                   </div>
 
                   <div className="metric-card">
                     <div className="metric-icon purple"><FiBox /></div>
                     <div className="metric-info">
-                      <span className="label">Catalog Items</span>
+                      <span className="label">Catalog Inventory</span>
                       <strong className="value">{safeProducts.length}</strong>
+                      <span className="trend-text positive">Across 15 categories</span>
                     </div>
                   </div>
 
                   <div className="metric-card">
                     <div className="metric-icon orange"><FiUsers /></div>
                     <div className="metric-info">
-                      <span className="label">Active Customers</span>
-                      <strong className="value">1,248</strong>
+                      <span className="label">Active Customer Accounts</span>
+                      <strong className="value">1,480+</strong>
+                      <span className="trend-text positive"><FiArrowUpRight /> 98.4% CSAT</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="admin-panels-grid">
+                {/* Quick Restock & Inventory Radar */}
+                <div className="admin-panels-grid margin-top-lg">
                   <div className="admin-panel-card">
-                    <h3><FiAlertTriangle className="warning-icon" /> Low Stock Inventory Alerts</h3>
+                    <div className="panel-card-head">
+                      <h3><FiAlertTriangle className="warning-icon" /> Low Inventory Radar ({lowStockProducts.length})</h3>
+                      <button className="panel-head-link" onClick={() => { setAdminTab('products'); setProductStockFilter('low-stock'); }}>
+                        Manage All <FiChevronRight />
+                      </button>
+                    </div>
+                    
                     <div className="panel-list">
-                      {lowStockProducts.map(p => (
-                        <div key={p.id} className="panel-row-item">
-                          <span>{p.name}</span>
-                          <strong className="red-badge">{p.stock} units remaining</strong>
-                        </div>
-                      ))}
+                      {lowStockProducts.length === 0 ? (
+                        <div className="panel-empty-state">✅ All products have healthy stock levels!</div>
+                      ) : (
+                        lowStockProducts.slice(0, 6).map(p => (
+                          <div key={p.id} className="panel-row-item">
+                            <div className="panel-item-left">
+                              <img src={p.image || ''} alt={p.name} className="panel-thumb" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=100&q=80'; }} />
+                              <div>
+                                <strong>{p.name}</strong>
+                                <small>{p.category} • SKU: {p.sku || `NC-${p.id}`}</small>
+                              </div>
+                            </div>
+                            <div className="panel-item-right">
+                              <span className="stock-alert-pill">{p.stock} left</span>
+                              <button className="quick-restock-btn" onClick={() => handleQuickStockDelta(p.id, 25)} title="Add 25 units">
+                                +25 Restock
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
 
+                  {/* Recent Orders Stream */}
                   <div className="admin-panel-card">
-                    <h3><FiClipboard /> Recent Customer Orders</h3>
+                    <div className="panel-card-head">
+                      <h3><FiClipboard /> Live Orders Pipeline</h3>
+                      <button className="panel-head-link" onClick={() => setAdminTab('orders')}>
+                        View All Orders <FiChevronRight />
+                      </button>
+                    </div>
+
                     <div className="panel-list">
                       {safeOrders.slice(0, 5).map(o => (
                         <div key={o.id} className="panel-row-item">
-                          <span>Order #{o.id} • {o.shippingAddress?.name || 'Customer'}</span>
-                          <strong className="status-chip">{o.status}</strong>
+                          <div>
+                            <strong>Order #{o.id}</strong>
+                            <small>{o.shippingAddress?.name || 'Customer'} • ₹{formatPrice(o.total)}</small>
+                          </div>
+                          <div className="panel-item-right">
+                            <span className={`status-badge-chip ${o.status.toLowerCase()}`}>
+                              {o.status}
+                            </span>
+                            <select 
+                              className="order-quick-status-select"
+                              value={o.status}
+                              onChange={(e) => updateOrderStatus(o.id, e.target.value)}
+                            >
+                              <option value="Processing">Processing</option>
+                              <option value="Shipped">Shipped</option>
+                              <option value="Delivered">Delivered</option>
+                              <option value="Cancelled">Cancelled</option>
+                            </select>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -235,16 +495,394 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* TAB 2: LIVE STORE CONFIG MANAGER */}
+            {/* ========================================================
+               TAB 2: CATALOG & PRODUCT MANAGER (300+ ITEMS)
+               ======================================================== */}
+            {adminTab === 'products' && (
+              <div className="admin-tab-view">
+                <div className="admin-view-header">
+                  <div>
+                    <h1>Product Catalog Management ({safeProducts.length} Items)</h1>
+                    <p>Live inventory control, instant inline editing, pricing management, and sponsored promotions.</p>
+                  </div>
+                  <div className="header-action-group">
+                    <button className="cta-btn primary" onClick={() => setAddProductModal(true)}>
+                      <FiPlus /> Add New Product
+                    </button>
+                  </div>
+                </div>
+
+                {/* Filter & Search Bar */}
+                <div className="catalog-toolbar-card">
+                  <div className="search-input-wrap">
+                    <FiSearch />
+                    <input 
+                      type="text"
+                      placeholder="Search by title, brand, SKU or model..."
+                      value={productSearch}
+                      onChange={(e) => { setProductSearch(e.target.value); setCurrentPage(1); }}
+                    />
+                    {productSearch && (
+                      <button className="clear-search-btn" onClick={() => setProductSearch('')}><FiX /></button>
+                    )}
+                  </div>
+
+                  <div className="toolbar-selects-group">
+                    <div className="toolbar-select-item">
+                      <label><FiFilter /> Category:</label>
+                      <select 
+                        value={productCategoryFilter}
+                        onChange={(e) => { setProductCategoryFilter(e.target.value); setCurrentPage(1); }}
+                      >
+                        <option value="All">All Categories (15)</option>
+                        {CATEGORIES.map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="toolbar-select-item">
+                      <label>Stock Level:</label>
+                      <select 
+                        value={productStockFilter}
+                        onChange={(e) => { setProductStockFilter(e.target.value); setCurrentPage(1); }}
+                      >
+                        <option value="all">All Inventory</option>
+                        <option value="in-stock">In Stock (&gt;10 units)</option>
+                        <option value="low-stock">Low Stock (1-10 units)</option>
+                        <option value="out-of-stock">Out of Stock (0 units)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Products Table */}
+                <div className="admin-table-wrapper">
+                  <table className="admin-data-table">
+                    <thead>
+                      <tr>
+                        <th>Product & Details</th>
+                        <th>Category & SKU</th>
+                        <th>Price (₹)</th>
+                        <th>Stock Level</th>
+                        <th>Sponsored</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedProducts.length === 0 ? (
+                        <tr>
+                          <td colSpan="6" className="table-empty-cell">
+                            No products match your search or filter criteria.
+                          </td>
+                        </tr>
+                      ) : (
+                        paginatedProducts.map((prod) => {
+                          const isSpon = safeSponsoredIds.includes(prod.id);
+                          const isLow = (prod.stock || 0) < 10;
+                          return (
+                            <tr key={prod.id} className={isLow ? 'low-stock-row' : ''}>
+                              <td>
+                                <div className="product-table-identity">
+                                  <img 
+                                    src={prod.image || ''} 
+                                    alt={prod.name} 
+                                    className="table-product-thumb"
+                                    onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=100&q=80'; }} 
+                                  />
+                                  <div>
+                                    <strong className="table-prod-name">{prod.name}</strong>
+                                    <span className="table-prod-brand">{prod.brand || 'Brand'} • {prod.rating || 4.5} ⭐ ({prod.reviews || 0} reviews)</span>
+                                  </div>
+                                </div>
+                              </td>
+
+                              <td>
+                                <span className="category-pill-tag">{prod.category}</span>
+                                <small className="sku-code">{prod.sku || `NC-${prod.id}`}</small>
+                              </td>
+
+                              <td>
+                                <div className="price-stack">
+                                  <strong className="table-price">₹{formatPrice(prod.price)}</strong>
+                                  {prod.old && <small className="table-old-price">₹{formatPrice(prod.old)}</small>}
+                                </div>
+                              </td>
+
+                              <td>
+                                <div className="inline-stock-controller">
+                                  <button 
+                                    className="stock-step-btn" 
+                                    onClick={() => handleQuickStockDelta(prod.id, -1)}
+                                    title="Decrease stock by 1"
+                                  >
+                                    -
+                                  </button>
+                                  <span className={`stock-number ${isLow ? 'low' : ''}`}>
+                                    {prod.stock || 0}
+                                  </span>
+                                  <button 
+                                    className="stock-step-btn" 
+                                    onClick={() => handleQuickStockDelta(prod.id, 1)}
+                                    title="Increase stock by 1"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </td>
+
+                              <td>
+                                <button 
+                                  className={`spon-toggle-pill ${isSpon ? 'active' : ''}`}
+                                  onClick={() => toggleSponsored(prod.id)}
+                                  title={isSpon ? "Remove from Sponsored deals" : "Promote as Sponsored deal"}
+                                >
+                                  {isSpon ? '🔥 Sponsored' : '+ Sponsor'}
+                                </button>
+                              </td>
+
+                              <td>
+                                <div className="table-action-btns">
+                                  <button 
+                                    className="action-icon-btn edit" 
+                                    onClick={() => openEditModal(prod)}
+                                    title="Edit Product Details & Specs"
+                                  >
+                                    <FiEdit3 /> Edit
+                                  </button>
+                                  <button 
+                                    className="action-icon-btn delete" 
+                                    onClick={() => deleteProduct(prod.id)}
+                                    title="Delete Product"
+                                  >
+                                    <FiTrash2 />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination Controls */}
+                <div className="table-pagination-footer">
+                  <span className="pagination-count-info">
+                    Showing <strong>{paginatedProducts.length}</strong> of <strong>{filteredProducts.length}</strong> matched products
+                  </span>
+
+                  <div className="pagination-btns-wrap">
+                    <button 
+                      className="page-nav-btn" 
+                      disabled={currentPage <= 1}
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    >
+                      <FiChevronLeft /> Previous
+                    </button>
+                    
+                    <span className="page-current-tag">
+                      Page {currentPage} of {totalPages}
+                    </span>
+
+                    <button 
+                      className="page-nav-btn" 
+                      disabled={currentPage >= totalPages}
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    >
+                      Next <FiChevronRight />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ========================================================
+               TAB 3: CATEGORIES & TAXONOMIES STUDIO (ALL 15)
+               ======================================================== */}
+            {adminTab === 'categories' && (
+              <div className="admin-tab-view">
+                <div className="admin-view-header">
+                  <div>
+                    <h1>Category Taxonomy Studio (15 Departments)</h1>
+                    <p>Customize sub-navbar items, change category icons, names, and toggle storefront visibility.</p>
+                  </div>
+                </div>
+
+                {/* Add Custom Category Form */}
+                <div className="admin-edit-card margin-bottom">
+                  <h3><FiPlus /> Add New Category Department</h3>
+                  <form onSubmit={handleAddCategory} className="admin-form-grid margin-top">
+                    <div>
+                      <label>Category Display Name</label>
+                      <input 
+                        type="text"
+                        placeholder="e.g. Smart Home"
+                        value={newCatName}
+                        onChange={(e) => setNewCatName(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label>Icon Emoji</label>
+                      <input 
+                        type="text"
+                        placeholder="e.g. 💡"
+                        value={newCatIcon}
+                        onChange={(e) => setNewCatIcon(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label>URL Slug (Optional)</label>
+                      <input 
+                        type="text"
+                        placeholder="e.g. smart-home"
+                        value={newCatSlug}
+                        onChange={(e) => setNewCatSlug(e.target.value)}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                      <button type="submit" className="cta-btn primary full-width">
+                        Create Category
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* Categories Grid */}
+                <div className="admin-categories-cards-grid">
+                  {safeTaxonomies.map((cat) => (
+                    <div key={cat.id} className={`taxonomy-manage-card ${cat.visible ? 'active' : 'hidden-cat'}`}>
+                      <div className="tax-card-head">
+                        <span className="tax-large-icon">{cat.icon || '🏷️'}</span>
+                        <button
+                          className={`tax-vis-toggle ${cat.visible ? 'on' : 'off'}`}
+                          onClick={() => updateTaxonomy(cat.id, { visible: !cat.visible })}
+                        >
+                          {cat.visible ? <><FiCheck /> Active</> : <><FiX /> Hidden</>}
+                        </button>
+                      </div>
+
+                      <div className="tax-card-body">
+                        <label>Category Label</label>
+                        <input
+                          type="text"
+                          className="tax-name-input"
+                          value={cat.name || ''}
+                          onChange={(e) => updateTaxonomy(cat.id, { name: e.target.value })}
+                        />
+                        <div className="tax-meta-row">
+                          <small>ID: {cat.id}</small>
+                          <small>Icon: 
+                            <input 
+                              type="text" 
+                              className="icon-mini-input"
+                              value={cat.icon || ''}
+                              onChange={(e) => updateTaxonomy(cat.id, { icon: e.target.value })}
+                            />
+                          </small>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ========================================================
+               TAB 4: HERO BANNERS & SLIDER STUDIO
+               ======================================================== */}
+            {adminTab === 'hero-banners' && (
+              <div className="admin-tab-view">
+                <div className="admin-view-header">
+                  <div>
+                    <h1>Hero Carousel Banners Studio</h1>
+                    <p>Edit hero slides, update headlines, marketing imagery, and live countdown deal timers.</p>
+                  </div>
+                </div>
+
+                <div className="hero-banners-manage-list">
+                  {safeBanners.map((slide, idx) => (
+                    <div key={slide.id} className="admin-edit-card hero-slide-card">
+                      <div className="admin-card-head">
+                        <div className="slide-title-wrap">
+                          <span className="slide-number-badge">Slide #{idx + 1}</span>
+                          <strong>{slide.headline || 'Slide Headline'}</strong>
+                        </div>
+                        <button
+                          className={`tax-vis-toggle ${slide.visible ? 'on' : 'off'}`}
+                          onClick={() => updateHeroBanner(slide.id, { visible: !slide.visible })}
+                        >
+                          {slide.visible ? <><FiEye /> Visible</> : <><FiEyeOff /> Hidden</>}
+                        </button>
+                      </div>
+
+                      <div className="slide-preview-strip">
+                        <img src={slide.image} alt={slide.headline} onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&w=1200&q=80'; }} />
+                        <div className="preview-overlay-info">
+                          <span className="preview-tagline">{slide.tagline}</span>
+                          <h3>{slide.headline}</h3>
+                          <p>{slide.sub}</p>
+                        </div>
+                      </div>
+
+                      <div className="admin-form-grid margin-top">
+                        <div>
+                          <label>Marketing Tagline / Pill</label>
+                          <input
+                            type="text"
+                            value={slide.tagline || ''}
+                            onChange={(e) => updateHeroBanner(slide.id, { tagline: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <label>Primary Headline</label>
+                          <input
+                            type="text"
+                            value={slide.headline || ''}
+                            onChange={(e) => updateHeroBanner(slide.id, { headline: e.target.value })}
+                          />
+                        </div>
+                        <div className="full-width">
+                          <label>Subheadline / Promotional Description</label>
+                          <input
+                            type="text"
+                            value={slide.sub || ''}
+                            onChange={(e) => updateHeroBanner(slide.id, { sub: e.target.value })}
+                          />
+                        </div>
+                        <div className="full-width">
+                          <label>Background Hero Image URL</label>
+                          <input
+                            type="text"
+                            value={slide.image || ''}
+                            onChange={(e) => updateHeroBanner(slide.id, { image: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ========================================================
+               TAB 5: HEADER TICKER & STORE INFORMATION
+               ======================================================== */}
             {adminTab === 'store-config' && (
               <div className="admin-tab-view">
-                <h1>Real-Time Storefront Configurator</h1>
-                <p>Changes saved here update the live website immediately across all visitors.</p>
+                <div className="admin-view-header">
+                  <div>
+                    <h1>Header Ticker & Storefront Information</h1>
+                    <p>Manage the top announcement bar, store contact details, and official social media handles.</p>
+                  </div>
+                </div>
 
                 {/* 1. Header Ticker */}
                 <div className="admin-edit-card margin-bottom">
                   <div className="admin-card-head">
-                    <h3><FiBell /> Top Header Announcement Ticker</h3>
+                    <h3><FiBell /> Top Header Announcement Bar</h3>
                     <button
                       className={`tax-vis-toggle ${topTicker?.enabled ? 'on' : 'off'}`}
                       onClick={() => updateTopTicker({ enabled: !topTicker?.enabled })}
@@ -252,7 +890,7 @@ export default function AdminPage() {
                       {topTicker?.enabled ? <><FiCheck /> Enabled</> : <><FiX /> Disabled</>}
                     </button>
                   </div>
-                  <div className="admin-form-grid">
+                  <div className="admin-form-grid margin-top">
                     <div className="full-width">
                       <label>Main Sale Announcement Text</label>
                       <input
@@ -270,7 +908,7 @@ export default function AdminPage() {
                       />
                     </div>
                     <div>
-                      <label>Shipping Perk Line</label>
+                      <label>Free Shipping Perk Line</label>
                       <input
                         type="text"
                         value={topTicker?.shippingText || ''}
@@ -280,9 +918,9 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {/* 2. Store Info & Social Media Links */}
-                <div className="admin-edit-card margin-bottom">
-                  <h3><FiMapPin /> Store Information & Social Media Links</h3>
+                {/* 2. Store Info */}
+                <div className="admin-edit-card">
+                  <h3><FiMapPin /> Store Contact Information & Social Channels</h3>
                   <div className="admin-form-grid margin-top">
                     <div className="full-width">
                       <label>Headquarters Physical Address</label>
@@ -309,7 +947,7 @@ export default function AdminPage() {
                       />
                     </div>
                     <div>
-                      <label>Instagram Page URL</label>
+                      <label>Instagram Handle URL</label>
                       <input
                         type="text"
                         value={storeInfo?.instagram || ''}
@@ -317,7 +955,7 @@ export default function AdminPage() {
                       />
                     </div>
                     <div>
-                      <label>Twitter / X Page URL</label>
+                      <label>Twitter / X Handle URL</label>
                       <input
                         type="text"
                         value={storeInfo?.twitter || ''}
@@ -342,26 +980,40 @@ export default function AdminPage() {
                     </div>
                   </div>
                 </div>
+              </div>
+            )}
 
-                {/* 3. Homepage Pop-up Deals */}
-                <div className="admin-edit-card margin-bottom">
-                  <div className="admin-card-head">
-                    <h3><FiGift /> Homepage Promotional Deal Pop-Up</h3>
-                    <div className="admin-btn-group">
-                      <button className="admin-preview-btn" onClick={() => setIsPromoPopupOpen(true)}>
-                        <FiEye /> Preview Pop-Up
-                      </button>
-                      <button
-                        className={`tax-vis-toggle ${promoPopup?.enabled ? 'on' : 'off'}`}
-                        onClick={() => updatePromoPopup({ enabled: !promoPopup?.enabled })}
-                      >
-                        {promoPopup?.enabled ? <><FiCheck /> Enabled</> : <><FiX /> Disabled</>}
-                      </button>
-                    </div>
+            {/* ========================================================
+               TAB 6: DEALS & PROMO POP-UP CAMPAIGN
+               ======================================================== */}
+            {adminTab === 'promo-popup' && (
+              <div className="admin-tab-view">
+                <div className="admin-view-header">
+                  <div>
+                    <h1>Promotional Deal Pop-Up Campaign</h1>
+                    <p>Customize conversion popups, discount promo codes, and preview how visitors see it.</p>
                   </div>
-                  <div className="admin-form-grid">
+                  <div className="header-action-group">
+                    <button className="cta-btn secondary" onClick={() => setIsPromoPopupOpen(true)}>
+                      <FiEye /> Test Live Pop-Up Preview
+                    </button>
+                  </div>
+                </div>
+
+                <div className="admin-edit-card">
+                  <div className="admin-card-head">
+                    <h3><FiGift /> Pop-Up Modal Configuration</h3>
+                    <button
+                      className={`tax-vis-toggle ${promoPopup?.enabled ? 'on' : 'off'}`}
+                      onClick={() => updatePromoPopup({ enabled: !promoPopup?.enabled })}
+                    >
+                      {promoPopup?.enabled ? <><FiCheck /> Enabled</> : <><FiX /> Disabled</>}
+                    </button>
+                  </div>
+
+                  <div className="admin-form-grid margin-top">
                     <div className="full-width">
-                      <label>Pop-Up Title</label>
+                      <label>Pop-Up Main Title</label>
                       <input
                         type="text"
                         value={promoPopup?.title || ''}
@@ -369,7 +1021,7 @@ export default function AdminPage() {
                       />
                     </div>
                     <div className="full-width">
-                      <label>Subtitle / Details</label>
+                      <label>Subtitle & Terms</label>
                       <input
                         type="text"
                         value={promoPopup?.sub || ''}
@@ -377,7 +1029,7 @@ export default function AdminPage() {
                       />
                     </div>
                     <div>
-                      <label>Discount Code</label>
+                      <label>Promo Discount Code</label>
                       <input
                         type="text"
                         value={promoPopup?.code || ''}
@@ -393,7 +1045,7 @@ export default function AdminPage() {
                       />
                     </div>
                     <div className="full-width">
-                      <label>Pop-Up Feature Image URL</label>
+                      <label>Featured Image URL</label>
                       <input
                         type="text"
                         value={promoPopup?.image || ''}
@@ -402,98 +1054,59 @@ export default function AdminPage() {
                     </div>
                   </div>
                 </div>
+              </div>
+            )}
 
-                {/* 4. Hero Banners */}
-                <div className="admin-edit-card margin-bottom">
-                  <h3><FiImage /> Hero Banner Slides & Countdown Timers</h3>
-                  <div className="admin-cards-list margin-top">
-                    {safeBanners.map(slide => (
-                      <div key={slide.id} className="admin-edit-card">
-                        <div className="admin-card-head">
-                          <strong>Slide #{slide.id}: {slide.tagline}</strong>
-                          <button
-                            className="toggle-vis-btn"
-                            onClick={() => updateHeroBanner(slide.id, { visible: !slide.visible })}
-                          >
-                            {slide.visible ? <><FiEye /> Visible</> : <><FiEyeOff /> Hidden</>}
-                          </button>
-                        </div>
-                        <div className="admin-form-grid">
-                          <div>
-                            <label>Tagline</label>
-                            <input
-                              type="text"
-                              value={slide.tagline || ''}
-                              onChange={(e) => updateHeroBanner(slide.id, { tagline: e.target.value })}
-                            />
-                          </div>
-                          <div>
-                            <label>Headline</label>
-                            <input
-                              type="text"
-                              value={slide.headline || ''}
-                              onChange={(e) => updateHeroBanner(slide.id, { headline: e.target.value })}
-                            />
-                          </div>
-                          <div className="full-width">
-                            <label>Image URL</label>
-                            <input
-                              type="text"
-                              value={slide.image || ''}
-                              onChange={(e) => updateHeroBanner(slide.id, { image: e.target.value })}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+            {/* ========================================================
+               TAB 7: HOMEPAGE SECTIONS LAYOUT MANAGER
+               ======================================================== */}
+            {adminTab === 'homepage-sections' && (
+              <div className="admin-tab-view">
+                <div className="admin-view-header">
+                  <div>
+                    <h1>Homepage Layout & Sections Manager</h1>
+                    <p>Toggle individual sections on or off live on the home storefront.</p>
                   </div>
                 </div>
 
-                {/* 5. Taxonomies */}
-                <div className="admin-edit-card margin-bottom">
-                  <h3><FiGrid /> Category Taxonomy Bar</h3>
-                  <div className="taxonomy-admin-list margin-top">
-                    {safeTaxonomies.map((cat) => (
-                      <div key={cat.id} className="tax-admin-item">
-                        <span className="tax-icon-preview">{cat.icon || '🏷️'}</span>
-                        <input
-                          type="text"
-                          className="tax-name-input"
-                          value={cat.name || ''}
-                          onChange={(e) => updateTaxonomy(cat.id, { name: e.target.value })}
-                        />
-                        <button
-                          className={`tax-vis-toggle ${cat.visible ? 'on' : 'off'}`}
-                          onClick={() => updateTaxonomy(cat.id, { visible: !cat.visible })}
-                        >
-                          {cat.visible ? <><FiCheck /> Active</> : <><FiX /> Hidden</>}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 6. Sponsored Feeds */}
                 <div className="admin-edit-card">
-                  <h3>🔥 Sponsored Partner Feeds</h3>
-                  <p>Toggle products to feature sponsored badges on the home feed.</p>
-                  <div className="sponsored-grid margin-top">
-                    {safeProducts.map((p) => {
-                      const isSpon = safeSponsoredIds.includes(p.id);
+                  <h3>🏗️ Toggle Storefront Sections</h3>
+                  <div className="section-toggles-grid margin-top">
+                    {Object.keys(homePageConfig?.sections || {}).map((secKey) => {
+                      const isActive = homePageConfig.sections[secKey];
+                      const secNames = {
+                        hero: "Hero Banner Carousel",
+                        taxonomy: "Category Icons Bar",
+                        recent: "Recently Viewed Carousel",
+                        flashDeal: "Flash Deals Banner",
+                        tabsShowcase: "Tabbed Showcase Grid",
+                        sponsored: "Sponsored Ad Feeds",
+                        promoBanner: "Freedom Sale Promo",
+                        deals: "Top Recommendations",
+                        brandSpotlight: "Official Brands Spotlight",
+                        infoCards: "Guarantees & Trust Info",
+                        testimonials: "Shopper Reviews",
+                        newsletter: "Newsletter Banner",
+                        categoryGrid: "Shop by Category Grid",
+                        bankOffers: "Bank & Payment Offers Strip",
+                        newArrivals: "New Arrivals Spotlight",
+                        budgetGrid: "Budget / Price Store Grid",
+                        shoppableUGC: "Shop the Look UGC Social Wall",
+                        faqAccordion: "Interactive FAQ Accordion",
+                        appDownload: "App Download & Loyalty Banner",
+                        shoppingQuiz: "AI Shopping Assistant Quiz",
+                        priceTiersShowcase: "Price Tiered Showcase Shelf"
+                      };
                       return (
                         <div
-                          key={p.id}
-                          className={`sponsored-card ${isSpon ? 'active' : ''}`}
-                          onClick={() => toggleSponsored(p.id)}
+                          key={secKey}
+                          className={`section-toggle-card ${isActive ? 'active' : ''}`}
+                          onClick={() => updateHomePageConfig({
+                            sections: { [secKey]: !isActive }
+                          })}
                         >
-                          <img src={p.image || ''} alt={p.name || ''} />
-                          <div>
-                            <strong>{p.name}</strong>
-                            <span>₹{formatPrice(p.price)}</span>
-                          </div>
-                          <button className="spon-badge-btn">
-                            {isSpon ? '🔥 Sponsored' : '+ Add Sponsor'}
-                          </button>
+                          <span className="sec-toggle-label">{secNames[secKey] || secKey}</span>
+                          <span className={`status-indicator-dot ${isActive ? 'active' : ''}`} />
                         </div>
                       );
                     })}
@@ -502,220 +1115,407 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* TAB 3: PRODUCTS CATALOG MANAGER */}
-            {adminTab === 'products' && (
-              <div className="admin-tab-view">
-                <div className="tab-title-header">
-                  <div>
-                    <h1>Product Catalog</h1>
-                    <p>Add, edit price, or adjust inventory stock.</p>
-                  </div>
-                  <button className="cta-btn primary" onClick={() => setAddProductModal(true)}>
-                    <FiPlus /> Add New Product
-                  </button>
-                </div>
-
-                <div className="admin-table-container">
-                  <table className="admin-data-table">
-                    <thead>
-                      <tr>
-                        <th>Product</th>
-                        <th>Category</th>
-                        <th>Brand</th>
-                        <th>Price</th>
-                        <th>Stock</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {safeProducts.map(p => (
-                        <tr key={p.id}>
-                          <td className="product-cell">
-                            <img src={p.image || ''} alt={p.name || 'Product'} />
-                            <span>{p.name}</span>
-                          </td>
-                          <td>{p.category}</td>
-                          <td>{p.brand}</td>
-                          <td>
-                            <input 
-                              type="number"
-                              style={{ width: '90px', padding: '4px 8px', borderRadius: '4px', border: '1px solid #d4d4d8' }}
-                              value={p.price || 0}
-                              onChange={(e) => updateProduct(p.id, { price: Number(e.target.value) })}
-                            />
-                          </td>
-                          <td>
-                            <span className={p.stock < 10 ? 'stock-badge low' : 'stock-badge'}>
-                              {p.stock} units
-                            </span>
-                          </td>
-                          <td>
-                            <button 
-                              className="icon-action-btn delete"
-                              onClick={() => deleteProduct(p.id)}
-                              title="Delete Product"
-                            >
-                              <FiTrash2 />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* TAB 4: ORDERS MANAGEMENT */}
+            {/* ========================================================
+               TAB 8: CUSTOMER ORDERS & SHIPMENTS PIPELINE
+               ======================================================== */}
             {adminTab === 'orders' && (
               <div className="admin-tab-view">
-                <h1>Customer Orders</h1>
-                <p>Update order fulfillment status.</p>
+                <div className="admin-view-header">
+                  <div>
+                    <h1>Customer Orders & Fulfillment ({safeOrders.length})</h1>
+                    <p>Track order lifecycle, inspect items, update delivery status, and generate simulated invoices.</p>
+                  </div>
+                </div>
 
-                <div className="admin-table-container">
+                {/* Order Filter Pills */}
+                <div className="orders-filter-strip">
+                  {['All', 'Processing', 'Shipped', 'Delivered', 'Cancelled'].map(st => (
+                    <button
+                      key={st}
+                      className={`order-filter-pill ${orderStatusFilter === st ? 'active' : ''}`}
+                      onClick={() => setOrderStatusFilter(st)}
+                    >
+                      {st}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Orders List Table */}
+                <div className="admin-table-wrapper">
                   <table className="admin-data-table">
                     <thead>
                       <tr>
-                        <th>Order ID</th>
-                        <th>Date</th>
-                        <th>Customer</th>
-                        <th>Total</th>
-                        <th>Payment</th>
-                        <th>Fulfillment Status</th>
+                        <th>Order ID & Date</th>
+                        <th>Customer Name & Phone</th>
+                        <th>Items Count</th>
+                        <th>Total (₹)</th>
+                        <th>Status</th>
+                        <th>Fulfillment Action</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {safeOrders.map(o => (
-                        <tr key={o.id}>
-                          <td><strong>#{o.id}</strong></td>
-                          <td>{o.date}</td>
-                          <td>{o.shippingAddress?.name || 'Customer'}</td>
-                          <td>₹{formatPrice(o.total)}</td>
-                          <td>{o.paymentMethod}</td>
-                          <td>
-                            <select 
-                              className="status-selector-dropdown"
-                              value={o.status}
-                              onChange={(e) => updateOrderStatus(o.id, e.target.value)}
-                            >
-                              <option value="Confirmed">Confirmed</option>
-                              <option value="Processing">Processing</option>
-                              <option value="Shipped">Shipped</option>
-                              <option value="Out for Delivery">Out for Delivery</option>
-                              <option value="Delivered">Delivered</option>
-                            </select>
+                      {filteredOrders.length === 0 ? (
+                        <tr>
+                          <td colSpan="6" className="table-empty-cell">
+                            No orders found in "{orderStatusFilter}" status.
                           </td>
                         </tr>
-                      ))}
+                      ) : (
+                        filteredOrders.map(order => (
+                          <tr key={order.id}>
+                            <td>
+                              <strong>#{order.id}</strong>
+                              <small>{order.date || 'Today'}</small>
+                            </td>
+
+                            <td>
+                              <strong>{order.shippingAddress?.name || 'Customer'}</strong>
+                              <small>{order.shippingAddress?.city || 'Bengaluru'}, {order.shippingAddress?.phone || '+91'}</small>
+                            </td>
+
+                            <td>
+                              <span className="items-count-badge">
+                                {order.items ? order.items.length : 1} items
+                              </span>
+                            </td>
+
+                            <td>
+                              <strong>₹{formatPrice(order.total)}</strong>
+                              <small>{order.paymentMethod || 'UPI'}</small>
+                            </td>
+
+                            <td>
+                              <span className={`status-badge-chip ${order.status.toLowerCase()}`}>
+                                {order.status}
+                              </span>
+                            </td>
+
+                            <td>
+                              <div className="order-actions-wrap">
+                                <select
+                                  className="order-status-dropdown"
+                                  value={order.status}
+                                  onChange={(e) => updateOrderStatus(order.id, e.target.value)}
+                                >
+                                  <option value="Processing">Processing</option>
+                                  <option value="Shipped">Shipped</option>
+                                  <option value="Delivered">Delivered</option>
+                                  <option value="Cancelled">Cancelled</option>
+                                </select>
+                                <button 
+                                  className="order-details-btn"
+                                  onClick={() => setSelectedOrderDetails(order)}
+                                  title="View Full Order Invoice"
+                                >
+                                  <FiEye /> View
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
               </div>
             )}
+
           </main>
         </div>
       </div>
 
+      {/* ========================================================
+         MODAL 1: ADD NEW PRODUCT MODAL
+         ======================================================== */}
       {addProductModal && (
-        <div className="modal-backdrop" onClick={() => setAddProductModal(false)}>
-          <div className="admin-product-modal-card" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close-icon" onClick={() => setAddProductModal(false)}>
-              <FiX />
-            </button>
+        <div className="admin-modal-backdrop" onClick={() => setAddProductModal(false)}>
+          <div className="admin-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-modal-head">
+              <h2><FiPlus /> Add New Catalog Product</h2>
+              <button className="modal-close-btn" onClick={() => setAddProductModal(false)}><FiX /></button>
+            </div>
 
-            <h3>Add New Product to Catalog</h3>
+            <form onSubmit={handleAddProductSubmit} className="admin-modal-body">
+              <div className="admin-form-grid">
+                <div className="full-width">
+                  <label>Product Title *</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. Sony WH-1000XM5 Wireless Headphones"
+                    value={newProd.name}
+                    onChange={(e) => setNewProd({ ...newProd, name: e.target.value })}
+                    required
+                  />
+                </div>
 
-            <form onSubmit={handleAddProductSubmit} className="admin-form">
-              <div className="form-group">
-                <label>Product Name</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. SonicPro Wireless Earbuds"
-                  value={newProd.name}
-                  onChange={(e) => setNewProd({ ...newProd, name: e.target.value })}
-                  required 
-                />
-              </div>
-
-              <div className="form-row-2">
-                <div className="form-group">
-                  <label>Category</label>
-                  <select 
+                <div>
+                  <label>Department Category *</label>
+                  <select
                     value={newProd.category}
                     onChange={(e) => setNewProd({ ...newProd, category: e.target.value })}
                   >
-                    {CATEGORIES.filter(c => c !== 'All').map(c => (
-                      <option key={c} value={c}>{c}</option>
+                    {CATEGORIES.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
                     ))}
                   </select>
                 </div>
-                <div className="form-group">
-                  <label>Brand</label>
+
+                <div>
+                  <label>Brand Name</label>
                   <input 
-                    type="text" 
-                    placeholder="Brand Name"
+                    type="text"
+                    placeholder="e.g. Sony, Apple, Nike"
                     value={newProd.brand}
                     onChange={(e) => setNewProd({ ...newProd, brand: e.target.value })}
-                    required 
                   />
                 </div>
-              </div>
 
-              <div className="form-row-3">
-                <div className="form-group">
-                  <label>Price (₹)</label>
+                <div>
+                  <label>Price (₹) *</label>
                   <input 
-                    type="number" 
-                    placeholder="1999"
+                    type="number"
+                    placeholder="e.g. 24999"
                     value={newProd.price}
                     onChange={(e) => setNewProd({ ...newProd, price: e.target.value })}
-                    required 
+                    required
                   />
                 </div>
-                <div className="form-group">
-                  <label>Original Price (₹)</label>
+
+                <div>
+                  <label>Original / MRP (₹)</label>
                   <input 
-                    type="number" 
-                    placeholder="2999"
+                    type="number"
+                    placeholder="e.g. 34999"
                     value={newProd.old}
                     onChange={(e) => setNewProd({ ...newProd, old: e.target.value })}
                   />
                 </div>
-                <div className="form-group">
-                  <label>Initial Stock</label>
+
+                <div>
+                  <label>Inventory Stock Units</label>
                   <input 
-                    type="number" 
+                    type="number"
+                    placeholder="25"
                     value={newProd.stock}
-                    onChange={(e) => setNewProd({ ...newProd, stock: Number(e.target.value) })}
-                    required 
+                    onChange={(e) => setNewProd({ ...newProd, stock: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label>SKU Code</label>
+                  <input 
+                    type="text"
+                    placeholder="e.g. NC-EL-889"
+                    value={newProd.sku}
+                    onChange={(e) => setNewProd({ ...newProd, sku: e.target.value })}
+                  />
+                </div>
+
+                <div className="full-width">
+                  <label>Image URL</label>
+                  <input 
+                    type="text"
+                    placeholder="https://images.unsplash.com/..."
+                    value={newProd.image}
+                    onChange={(e) => setNewProd({ ...newProd, image: e.target.value })}
+                  />
+                </div>
+
+                <div className="full-width">
+                  <label>Detailed Description</label>
+                  <textarea 
+                    rows="3"
+                    placeholder="Enter detailed product highlights, materials, and warranty information..."
+                    value={newProd.description}
+                    onChange={(e) => setNewProd({ ...newProd, description: e.target.value })}
                   />
                 </div>
               </div>
 
-              <div className="form-group">
-                <label>Image URL</label>
-                <input 
-                  type="text" 
-                  value={newProd.image}
-                  onChange={(e) => setNewProd({ ...newProd, image: e.target.value })}
-                  required 
-                />
+              <div className="admin-modal-footer">
+                <button type="button" className="cta-btn secondary" onClick={() => setAddProductModal(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="cta-btn primary">
+                  Save & Publish Product
+                </button>
               </div>
-
-              <div className="form-group">
-                <label>Product Description</label>
-                <textarea 
-                  rows={3}
-                  value={newProd.description}
-                  onChange={(e) => setNewProd({ ...newProd, description: e.target.value })}
-                  placeholder="Key features and details..."
-                />
-              </div>
-
-              <button type="submit" className="cta-btn primary full-width">
-                Add Product to Catalog
-              </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+         MODAL 2: EDIT PRODUCT DETAILS MODAL
+         ======================================================== */}
+      {editingProduct && editForm && (
+        <div className="admin-modal-backdrop" onClick={() => setEditingProduct(null)}>
+          <div className="admin-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-modal-head">
+              <h2><FiEdit3 /> Edit Product: {editingProduct.name}</h2>
+              <button className="modal-close-btn" onClick={() => setEditingProduct(null)}><FiX /></button>
+            </div>
+
+            <form onSubmit={handleSaveEditProduct} className="admin-modal-body">
+              <div className="admin-form-grid">
+                <div className="full-width">
+                  <label>Product Title</label>
+                  <input 
+                    type="text"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label>Category</label>
+                  <select
+                    value={editForm.category}
+                    onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                  >
+                    {CATEGORIES.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label>Brand</label>
+                  <input 
+                    type="text"
+                    value={editForm.brand}
+                    onChange={(e) => setEditForm({ ...editForm, brand: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label>Price (₹)</label>
+                  <input 
+                    type="number"
+                    value={editForm.price}
+                    onChange={(e) => setEditForm({ ...editForm, price: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label>Original / MRP (₹)</label>
+                  <input 
+                    type="number"
+                    value={editForm.old}
+                    onChange={(e) => setEditForm({ ...editForm, old: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label>Stock Count</label>
+                  <input 
+                    type="number"
+                    value={editForm.stock}
+                    onChange={(e) => setEditForm({ ...editForm, stock: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label>Model SKU</label>
+                  <input 
+                    type="text"
+                    value={editForm.sku}
+                    onChange={(e) => setEditForm({ ...editForm, sku: e.target.value })}
+                  />
+                </div>
+
+                <div className="full-width">
+                  <label>Image URL</label>
+                  <input 
+                    type="text"
+                    value={editForm.image}
+                    onChange={(e) => setEditForm({ ...editForm, image: e.target.value })}
+                  />
+                </div>
+
+                <div className="full-width">
+                  <label>Product Description</label>
+                  <textarea 
+                    rows="3"
+                    value={editForm.description}
+                    onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="admin-modal-footer">
+                <button type="button" className="cta-btn secondary" onClick={() => setEditingProduct(null)}>
+                  Cancel
+                </button>
+                <button type="submit" className="cta-btn primary">
+                  Update Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+         MODAL 3: ORDER DETAILS & INVOICE INSPECTOR
+         ======================================================== */}
+      {selectedOrderDetails && (
+        <div className="admin-modal-backdrop" onClick={() => setSelectedOrderDetails(null)}>
+          <div className="admin-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-modal-head">
+              <h2><FiClipboard /> Order Invoice Details #{selectedOrderDetails.id}</h2>
+              <button className="modal-close-btn" onClick={() => setSelectedOrderDetails(null)}><FiX /></button>
+            </div>
+
+            <div className="admin-modal-body">
+              <div className="order-details-summary-card">
+                <div className="order-summary-row">
+                  <span>Customer Name:</span>
+                  <strong>{selectedOrderDetails.shippingAddress?.name || 'Customer'}</strong>
+                </div>
+                <div className="order-summary-row">
+                  <span>Contact Phone:</span>
+                  <strong>{selectedOrderDetails.shippingAddress?.phone || '+91 98765 43210'}</strong>
+                </div>
+                <div className="order-summary-row">
+                  <span>Delivery Address:</span>
+                  <span>{selectedOrderDetails.shippingAddress?.street}, {selectedOrderDetails.shippingAddress?.city}, {selectedOrderDetails.shippingAddress?.state} - {selectedOrderDetails.shippingAddress?.pin}</span>
+                </div>
+                <div className="order-summary-row">
+                  <span>Payment Method:</span>
+                  <strong>{selectedOrderDetails.paymentMethod || 'UPI / Card'}</strong>
+                </div>
+                <div className="order-summary-row">
+                  <span>Current Status:</span>
+                  <span className={`status-badge-chip ${selectedOrderDetails.status.toLowerCase()}`}>
+                    {selectedOrderDetails.status}
+                  </span>
+                </div>
+              </div>
+
+              <h4 className="margin-top">Ordered Line Items:</h4>
+              <div className="order-items-scroll-list">
+                {(selectedOrderDetails.items || []).map((item, idx) => (
+                  <div key={idx} className="order-item-detail-row">
+                    <span>{item.name} <strong>x{item.qty || 1}</strong></span>
+                    <strong>₹{formatPrice((item.price || 0) * (item.qty || 1))}</strong>
+                  </div>
+                ))}
+              </div>
+
+              <div className="order-total-highlight-row">
+                <span>Grand Total:</span>
+                <strong>₹{formatPrice(selectedOrderDetails.total)}</strong>
+              </div>
+            </div>
+
+            <div className="admin-modal-footer">
+              <button className="cta-btn primary" onClick={() => setSelectedOrderDetails(null)}>
+                Close Invoice
+              </button>
+            </div>
           </div>
         </div>
       )}

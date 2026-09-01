@@ -72,6 +72,10 @@ export default function ProductsPage() {
       if (pricePreset === '1000-3000' && (p.price < 1000 || p.price > 3000)) return false;
       if (pricePreset === 'above3000' && p.price <= 3000) return false;
 
+      // maxPrice query param filter
+      const maxPriceParam = searchParams.get('maxPrice');
+      if (maxPriceParam && p.price > Number(maxPriceParam)) return false;
+
       // Rating filter
       if (minRating > 0 && p.rating < minRating) return false;
 

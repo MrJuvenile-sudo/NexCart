@@ -145,9 +145,9 @@ export default function Footer() {
         <div className="footer-col">
           <h4>Customer Care</h4>
           <ul>
-            <li><Link to="/orders">Order Tracking</Link></li>
-            <li><Link to="/faq">Shipping & Returns FAQ</Link></li>
-            <li><Link to="/contact">Help & Support</Link></li>
+            <li><Link to="/track">Order Tracking</Link></li>
+            <li><Link to="/shipping-returns">Shipping & Returns FAQ</Link></li>
+            <li><Link to="/support">Help & Support</Link></li>
             <li><Link to="/profile">My Account</Link></li>
             <li><Link to="/wishlist">Saved Wishlist</Link></li>
           </ul>

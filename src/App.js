@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 
 // Providers
 import { ToastProvider } from './context/ToastContext';
@@ -8,6 +8,7 @@ import { CartProvider } from './context/CartContext';
 
 // Components
 import Navbar from './components/Navbar';
+import TaxonomyBar from './components/TaxonomyBar';
 import Footer from './components/Footer';
 import CartDrawer from './components/CartDrawer';
 import QuickViewModal from './components/QuickViewModal';
@@ -20,6 +21,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 
 // Pages
 import HomePage from './pages/HomePage';
+import CategoryHubPage from './pages/CategoryHubPage';
 import ProductsPage from './pages/ProductsPage';
 import ProductDetailsPage from './pages/ProductDetailsPage';
 import LoginPage from './pages/LoginPage';
@@ -37,12 +39,9 @@ import ContactUs from './pages/ContactUs.jsx';
 import DealsPage from './pages/DealsPage';
 import TrackOrderPage from './pages/TrackOrderPage';
 import GiftCardsPage from './pages/GiftCardsPage';
-import SupportPage from './pages/SupportPage';
 import ShippingReturns from './pages/ShippingReturns.jsx';
 import HelpSupport from './pages/HelpSupport.jsx';
-import MyAccount from './pages/MyAccount.jsx';
 import SavedWishlist from './pages/SavedWishlist.jsx';
-import CustomerSupport from './pages/CustomerSupport.jsx';
 import OrderTracking from './pages/OrderTracking.jsx';
 import DownloadApp from './pages/DownloadApp.jsx';
 import NotFoundPage from './pages/NotFoundPage';
@@ -51,17 +50,18 @@ import NotFoundPage from './pages/NotFoundPage';
 import './styles/main.css';
 import './styles/auth.css';
 
-export default function App() {
+function AppContent() {
+  const location = useLocation();
+  const isAdmin = location.pathname.startsWith('/admin');
+
   return (
-    <ErrorBoundary>
-      <ToastProvider>
-        <AuthProvider>
-          <CartProvider>
-            <div className="app-container">
-              <Navbar />
-              <div className="app-main-content">
-                <Routes>
+    <div className={`app-container ${isAdmin ? 'admin-layout-root' : ''}`}>
+      {!isAdmin && <Navbar />}
+      {!isAdmin && <TaxonomyBar />}
+      <div className={`app-main-content ${isAdmin ? 'admin-content-root' : ''}`}>
+        <Routes>
                   <Route path="/" element={<HomePage />} />
+                  <Route path="/category/:categorySlug" element={<CategoryHubPage />} />
                   <Route path="/products" element={<ProductsPage />} />
                   <Route path="/product/:id" element={<ProductDetailsPage />} />
                   <Route path="/login" element={<LoginPage />} />
@@ -77,20 +77,20 @@ export default function App() {
                   <Route path="/offers" element={<DealsPage />} />
                   <Route path="/track" element={<TrackOrderPage />} />
                   <Route path="/gift-cards" element={<GiftCardsPage />} />
-                  <Route path="/support" element={<SupportPage />} />
+                  <Route path="/support" element={<HelpSupport />} />
 <Route path="/order-tracking" element={<OrderTracking />} />
 <Route path="/shipping-returns" element={<ShippingReturns />} />
 <Route path="/help-support" element={<HelpSupport />} />
-<Route path="/my-account" element={<MyAccount />} />
+<Route path="/my-account" element={<ProtectedRoute element={<ProfilePage />} />} />
 <Route path="/saved-wishlist" element={<SavedWishlist />} />
-<Route path="/customer-support" element={<CustomerSupport />} />
+<Route path="/customer-support" element={<HelpSupport />} />
                   <Route path="/faq" element={<FAQPage />} />
                   <Route path="/download-app" element={<DownloadApp />} />
                   <Route path="/contact-us" element={<ContactUs />} />
                   <Route path="*" element={<NotFoundPage />} />
                 </Routes>
               </div>
-              <Footer />
+              {!isAdmin && <Footer />}
               <CartDrawer />
               <QuickViewModal />
               <AdminModal />
@@ -98,6 +98,16 @@ export default function App() {
               <AuthModal />
               <Toast />
             </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <ToastProvider>
+        <AuthProvider>
+          <CartProvider>
+            <AppContent />
           </CartProvider>
         </AuthProvider>
       </ToastProvider>

@@ -8,6 +8,15 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 
+const TRENDING_SEARCHES = [
+  'iPhone 16 Pro Max',
+  'Wireless ANC Headphones',
+  'Digital Air Fryer',
+  'Breathable Sneakers',
+  '15% Vitamin C Serum',
+  '4K Dual Dash Cam'
+];
+
 export default function Navbar() {
   const { user, logout } = useAuth();
   const { cartCount, wishlist, products, topTicker } = useCart();
@@ -41,9 +50,13 @@ export default function Navbar() {
     return (
       <header className="main-navbar" style={{ display: 'flex', justifyContent: 'center', padding: '15px' }}>
         <Link to="/" className="brand-logo" style={{ textDecoration: 'none' }}>
-          <div className="brand-title-wrap">
-            <span className="brand-name" style={{ fontSize: '24px', fontWeight: 'bold' }}>Nex<i>Cart</i></span>
-          </div>
+          <img 
+            src="/favicon.ico" 
+            alt="NexCart Logo" 
+            className="brand-logo-img"
+          />
+          <span className="brand-name">Nex<i>Cart</i></span>
+          <span className="brand-plus-tag">PLUS <span className="plus-star">✦</span></span>
         </Link>
       </header>
     );
@@ -76,7 +89,7 @@ export default function Navbar() {
     }
   };
 
-  const displayName = user?.name ? user.name.split(' ')[0].toUpperCase() : 'SHUBHANK';
+  const displayName = user?.name ? user.name.split(' ')[0].toUpperCase() : 'ACCOUNT';
 
   const formatPrice = (val) => {
     if (typeof val === 'number' && !isNaN(val)) {
@@ -114,23 +127,22 @@ export default function Navbar() {
             {mobileMenuOpen ? <FiX /> : <FiMenu />}
           </button>
 
-          <Link to="/" className="brand-logo">
+          <Link to="/" className="brand-logo" title="NexCart Store">
             <img 
-              src="/logo.png" 
+              src="/favicon.ico" 
               alt="NexCart Logo" 
               className="brand-logo-img"
-              onError={(e) => { e.target.src = '/favicon.ico'; }}
             />
-            <div className="brand-title-wrap">
-              <span className="brand-name">Nex<i>Cart</i></span>
-            </div>
+            <span className="brand-name">Nex<i>Cart</i></span>
+            <span className="brand-plus-tag">PLUS <span className="plus-star">✦</span></span>
           </Link>
 
+          {/* Enhanced Search with Trending Suggestions */}
           <div className="nav-search-wrapper" ref={searchRef}>
             <form onSubmit={handleSearchSubmit} className="nav-search-form">
               <input
                 type="text"
-                placeholder="Search for products, brands and more..."
+                placeholder="Search for 5G mobiles, streetwear, electronics & appliances..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => setSearchFocused(true)}
@@ -140,26 +152,61 @@ export default function Navbar() {
               </button>
             </form>
 
-            {searchFocused && searchMatches.length > 0 && (
+            {searchFocused && (
               <div className="search-results-dropdown">
-                <div className="dropdown-header">Matching Recommendations ({searchMatches.length})</div>
-                {searchMatches.map(p => (
-                  <div
-                    key={p.id}
-                    className="search-item"
-                    onClick={() => {
-                      navigate(`/product/${p.id}`);
-                      setSearchFocused(false);
-                      setSearchQuery('');
-                    }}
-                  >
-                    <img src={p.image || ''} alt={p.name || 'Product'} />
-                    <div>
-                      <h4>{p.name}</h4>
-                      <small>{p.category} • ₹{formatPrice(p.price)}</small>
+                {searchMatches.length > 0 ? (
+                  <>
+                    <div className="dropdown-header">Top Matching Results ({searchMatches.length})</div>
+                    {searchMatches.map(p => (
+                      <div
+                        key={p.id}
+                        className="search-item"
+                        onClick={() => {
+                          navigate(`/product/${p.id}`);
+                          setSearchFocused(false);
+                          setSearchQuery('');
+                        }}
+                      >
+                        <img src={p.image || ''} alt={p.name || 'Product'} />
+                        <div>
+                          <h4>{p.name}</h4>
+                          <small>{p.category} • ₹{formatPrice(p.price)}</small>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <div style={{ padding: '16px' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>
+                      🔥 Trending Searches:
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {TRENDING_SEARCHES.map((item, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setSearchQuery(item);
+                            navigate(`/products?search=${encodeURIComponent(item)}`);
+                            setSearchFocused(false);
+                          }}
+                          style={{
+                            background: '#f1f5f9',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '16px',
+                            padding: '6px 12px',
+                            fontSize: '0.8rem',
+                            cursor: 'pointer',
+                            color: '#334155',
+                            fontWeight: '600'
+                          }}
+                        >
+                          {item}
+                        </button>
+                      ))}
                     </div>
                   </div>
-                ))}
+                )}
               </div>
             )}
           </div>
@@ -169,47 +216,67 @@ export default function Navbar() {
               <FiZap style={{ color: '#F59E0B' }} /> <span>Offers</span>
             </Link>
             <Link to="/my-account" className="nav-link-item">
-              <FiUser style={{ color: '#4F46E5' }} /> <span>My Account</span>
+              <FiUser style={{ color: '#4F46E5' }} /> <span>Account</span>
             </Link>
             <Link to="/wishlist" className="nav-link-item">
               <FiHeart style={{ color: '#EF4444' }} /> <span>Wishlist</span>
+              {Array.isArray(wishlist) && wishlist.length > 0 && (
+                <span className="wishlist-badge-count">{wishlist.length}</span>
+              )}
             </Link>
 
             {user ? (
               <div className="user-menu-container" ref={userRef}>
                 <button
-                  className="user-profile-dropdown-btn"
+                  className="user-profile-dropdown-btn user-vip-active"
                   onClick={() => setUserDropdownOpen(!userDropdownOpen)}
                 >
-                  <FiUser className="user-icon-lead" />
+                  <div className="user-avatar-mini">
+                    {user.name?.[0]?.toUpperCase() || 'U'}
+                  </div>
                   <span className="user-name-label">{displayName}</span>
                   <FiChevronDown className={`chevron-icon ${userDropdownOpen ? 'open' : ''}`} />
                 </button>
 
                 {userDropdownOpen && (
-                  <div className="user-dropdown-menu">
+                  <div className="user-dropdown-menu luxury-dropdown">
                     <div className="user-dropdown-header">
-                      <strong>Hello, {user?.name || 'Shubhank Parihar'}</strong>
-                      <small>{user?.email || 'shubhank@nexcart.dev'}</small>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <strong>{user?.name || 'Customer'}</strong>
+                        <span className="vip-gold-chip">👑 VIP GOLD</span>
+                      </div>
+                      <small>{user?.email || 'customer@nexcart.dev'}</small>
+                      
+                      {/* Wallet Quick Status Bar */}
+                      <div className="user-wallet-preview">
+                        <div>
+                          <span>Wallet Balance</span>
+                          <strong>₹2,450</strong>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <span>NexCoins</span>
+                          <strong style={{ color: '#F59E0B' }}>★ 450</strong>
+                        </div>
+                      </div>
                     </div>
                     <hr />
                     <Link to="/profile" onClick={() => setUserDropdownOpen(false)}>
-                      <FiUser /> My Profile
+                      <FiUser /> Account Dashboard
                     </Link>
                     <Link to="/orders" onClick={() => setUserDropdownOpen(false)}>
-                      <FiPackage /> My Orders
+                      <FiPackage /> My Orders & Shipments
                     </Link>
                     <Link to="/wishlist" onClick={() => setUserDropdownOpen(false)}>
-                      <FiHeart /> Wishlist ({Array.isArray(wishlist) ? wishlist.length : 0})
+                      <FiHeart /> Saved Wishlist ({Array.isArray(wishlist) ? wishlist.length : 0})
                     </Link>
                     <Link to="/offers" onClick={() => setUserDropdownOpen(false)}>
-                      <FiZap /> Deals & Coupons
+                      <FiZap /> Deals & Promo Vouchers
                     </Link>
                     <Link to="/gift-cards" onClick={() => setUserDropdownOpen(false)}>
-                      <FiGift /> Gift Cards & Wallet
+                      <FiGift /> Digital Gift Cards & Wallet
                     </Link>
                     <Link to="/track" onClick={() => setUserDropdownOpen(false)}>
-                      <FiTruck /> Track Shipment
+                      <FiTruck /> Track Order
                     </Link>
                     <hr />
                     <button
@@ -246,7 +313,7 @@ export default function Navbar() {
                     <FiTruck /> Track Order
                   </Link>
                   <Link to="/gift-cards" onClick={() => setMoreDropdownOpen(false)}>
-                    <FiGift /> Gift Cards
+                    <FiGift /> Digital Gift Cards
                   </Link>
                   <Link to="/download-app" onClick={() => setMoreDropdownOpen(false)}>
                     <FiShield /> Download Mobile App

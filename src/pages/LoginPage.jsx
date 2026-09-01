@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { FiMail, FiLock, FiEye, FiEyeOff, FiArrowRight, FiCheckCircle, FiUser, FiShield } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
 
 export default function LoginPage() {
   const { login } = useAuth();
+  const { addPendingProductAfterLogin, pendingAddToCart, setCartDrawerOpen } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -41,7 +43,13 @@ export default function LoginPage() {
         if (user) navigate('/admin');
       } else {
         const user = await login({ email, password });
-        if (user) navigate(redirectPath);
+        if (user) {
+          if (pendingAddToCart && typeof addPendingProductAfterLogin === 'function') {
+            addPendingProductAfterLogin(user);
+            setCartDrawerOpen(true);
+          }
+          navigate(redirectPath);
+        }
       }
     } catch (err) {
       setErrorMsg(err.message || 'Failed to sign in. Please check your credentials.');
