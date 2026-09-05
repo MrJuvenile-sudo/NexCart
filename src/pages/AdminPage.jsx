@@ -5,10 +5,12 @@ import {
   FiTrash2, FiAlertTriangle, FiX, FiLock, FiSliders, FiBell, 
   FiGift, FiImage, FiCheck, FiEye, FiEyeOff, FiLogOut, 
   FiShield, FiMapPin, FiEdit3, FiSearch, FiFilter, 
-  FiExternalLink, FiTrendingUp, 
+  FiExternalLink, FiTrendingUp, FiClock,
   FiChevronLeft, FiChevronRight, FiArrowUpRight, 
   FiLayers
 } from 'react-icons/fi';
+import CountdownTimer from '../components/CountdownTimer';
+import NexCartLogo from '../components/NexCartLogo';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { CATEGORIES } from '../data/mockData';
@@ -32,6 +34,8 @@ export default function AdminPage() {
     updateTaxonomy,
     storeInfo,
     updateStoreInfo,
+    flashDealConfig,
+    updateFlashDealConfig,
     sponsoredIds,
     toggleSponsored,
     setIsPromoPopupOpen,
@@ -41,7 +45,7 @@ export default function AdminPage() {
 
   const navigate = useNavigate();
 
-  // Active Admin Tabs: dashboard, products, categories, hero-banners, store-config, promo-popup, homepage-sections, orders
+  // Active Admin Tabs: dashboard, products, categories, hero-banners, timers, store-config, promo-popup, homepage-sections, orders
   const [adminTab, setAdminTab] = useState('dashboard');
 
   // Modals & Selectors State
@@ -123,12 +127,13 @@ export default function AdminPage() {
   const filteredOrders = useMemo(() => {
     if (orderStatusFilter === 'All') return safeOrders;
     return safeOrders.filter(o => o.status === orderStatusFilter);
-  }, [safeOrders, orderStatusFilter]);
-
-  if (!user || user.role !== 'admin') {
+  }, [safeOrders, orderStatusFilter]);  if (!user || user.role !== 'admin') {
     return (
       <div className="admin-access-denied-container">
         <div className="access-card">
+          <div className="admin-login-brand-header">
+            <NexCartLogo size={56} variant="card" subtitle="ADMIN CONTROL CENTER" />
+          </div>
           <div className="icon-circle"><FiLock /></div>
           <h2>Admin Workspace Restricted</h2>
           <p>You need administrator permissions to view the store management dashboard.</p>
@@ -154,25 +159,52 @@ export default function AdminPage() {
     return val || '0';
   };
 
+  const toDatetimeLocal = (timestamp) => {
+    if (!timestamp) return '';
+    const d = new Date(Number(timestamp));
+    if (isNaN(d.getTime())) return '';
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
   const handleAdminSignOut = () => {
     logout();
     navigate('/login');
   };
 
-  // Add Product Submit
+  const openEditModal = (product) => {
+    setEditingProduct(product);
+    setEditForm({
+      ...product,
+      specs: product.specs || {}
+    });
+  };
+
+  const handleSaveEditProduct = (e) => {
+    e.preventDefault();
+    if (!editingProduct || !editForm) return;
+
+    updateProduct(editingProduct.id, {
+      ...editForm,
+      price: Number(editForm.price),
+      old: editForm.old ? Number(editForm.old) : null,
+      stock: Number(editForm.stock)
+    });
+    setEditingProduct(null);
+    setEditForm(null);
+  };
+
   const handleAddProductSubmit = (e) => {
     e.preventDefault();
     if (!newProd.name || !newProd.price) return;
-    
-    const formatted = {
+
+    addProduct({
       ...newProd,
       price: Number(newProd.price),
       old: newProd.old ? Number(newProd.old) : Math.round(Number(newProd.price) * 1.3),
       stock: Number(newProd.stock) || 20,
       sku: newProd.sku || `NC-${(newProd.category || 'GEN').substring(0, 2).toUpperCase()}-${Date.now().toString().slice(-4)}`
-    };
-
-    addProduct(formatted);
+    });
     setAddProductModal(false);
     setNewProd({
       name: '',
@@ -191,49 +223,13 @@ export default function AdminPage() {
     });
   };
 
-  // Open Edit Product Modal
-  const openEditModal = (prod) => {
-    setEditingProduct(prod);
-    setEditForm({
-      name: prod.name || '',
-      category: prod.category || 'Fashion',
-      brand: prod.brand || '',
-      sku: prod.sku || '',
-      price: prod.price || '',
-      old: prod.old || '',
-      stock: prod.stock ?? 10,
-      description: prod.description || '',
-      image: prod.image || '',
-      rating: prod.rating || 4.5,
-      reviews: prod.reviews || 24
-    });
+  const handleQuickStockDelta = (productId, delta) => {
+    const prod = safeProducts.find(p => p.id === productId);
+    if (!prod) return;
+    const newStock = Math.max(0, (prod.stock || 0) + delta);
+    updateProduct(productId, { stock: newStock });
   };
 
-  // Save Edit Product
-  const handleSaveEditProduct = (e) => {
-    e.preventDefault();
-    if (!editingProduct || !editForm) return;
-
-    updateProduct(editingProduct.id, {
-      ...editForm,
-      price: Number(editForm.price),
-      old: Number(editForm.old),
-      stock: Number(editForm.stock)
-    });
-
-    setEditingProduct(null);
-    setEditForm(null);
-  };
-
-  // Inline Quick Stock Edit
-  const handleQuickStockDelta = (prodId, delta) => {
-    const p = safeProducts.find(item => item.id === prodId);
-    if (!p) return;
-    const newStock = Math.max(0, (p.stock || 0) + delta);
-    updateProduct(prodId, { stock: newStock });
-  };
-
-  // Add Custom Category
   const handleAddCategory = (e) => {
     e.preventDefault();
     if (!newCatName) return;
@@ -253,12 +249,8 @@ export default function AdminPage() {
       {/* 1. TOP FLUSH COMMAND HEADER */}
       <header className="custom-admin-header">
         <div className="admin-header-left">
-          <Link to="/" className="admin-header-logo">
-            <div className="admin-logo-mark">⚡</div>
-            <div className="admin-brand-text">
-              <span>Nex<b>Cart</b></span>
-              <small>ADMIN CONTROL CENTER</small>
-            </div>
+          <Link to="/" className="admin-header-logo" title="Back to Storefront">
+            <NexCartLogo size={38} variant="header" subtitle="ADMIN CONTROL CENTER" />
           </Link>
           <span className="live-status-pill">
             <span className="pulse-dot" /> Live System Synchronized
@@ -294,6 +286,14 @@ export default function AdminPage() {
         <div className="admin-layout-grid">
           {/* SIDEBAR NAVIGATION */}
           <aside className="admin-sidebar">
+            <div className="admin-sidebar-profile-card">
+              <NexCartLogo size={34} variant="sidebar" showText={false} />
+              <div className="sidebar-brand-meta">
+                <strong>NexCart Store Ops</strong>
+                <span className="sidebar-status-tag">Online • v2.0</span>
+              </div>
+            </div>
+
             <div className="sidebar-group-title">MANAGEMENT CONSOLE</div>
             
             <button 
@@ -325,6 +325,14 @@ export default function AdminPage() {
             >
               <FiImage /> <span>Hero Carousel Studio</span>
               <span className="sidebar-count-chip">{safeBanners.length}</span>
+            </button>
+
+            <button 
+              className={adminTab === 'timers' ? 'active' : ''}
+              onClick={() => setAdminTab('timers')}
+            >
+              <FiClock /> <span>Countdown & Deal Timers</span>
+              <span className="sidebar-count-chip live-chip">Live</span>
             </button>
 
             <button 
@@ -860,9 +868,330 @@ export default function AdminPage() {
                             onChange={(e) => updateHeroBanner(slide.id, { image: e.target.value })}
                           />
                         </div>
+
+                        {/* Slide Countdown Timer Controls */}
+                        <div className="full-width slide-timer-panel-box">
+                          <div className="slide-timer-head-row">
+                            <div className="timer-title-group">
+                              <FiClock className="timer-icon-lead" />
+                              <div>
+                                <strong>Promotional Countdown Timer</strong>
+                                <small>Displays a live ticking deal countdown on this hero banner slide</small>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              className={`tax-vis-toggle ${slide.hasTimer ? 'on' : 'off'}`}
+                              onClick={() => updateHeroBanner(slide.id, { hasTimer: !slide.hasTimer })}
+                            >
+                              {slide.hasTimer ? <><FiCheck /> Timer Active</> : <><FiX /> Timer Off</>}
+                            </button>
+                          </div>
+
+                          {slide.hasTimer && (
+                            <div className="slide-timer-inputs-grid margin-top">
+                              <div>
+                                <label>Timer Label Copy</label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. Limited Deal Ends in:"
+                                  value={slide.timerLabel || 'Limited Deal Ends in:'}
+                                  onChange={(e) => updateHeroBanner(slide.id, { timerLabel: e.target.value })}
+                                />
+                              </div>
+
+                              <div>
+                                <label>Target End Date & Time</label>
+                                <input
+                                  type="datetime-local"
+                                  value={toDatetimeLocal(slide.saleTimer || (Date.now() + 24 * 3600 * 1000))}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val) {
+                                      const ms = new Date(val).getTime();
+                                      if (!isNaN(ms)) {
+                                        updateHeroBanner(slide.id, { saleTimer: ms });
+                                      }
+                                    }
+                                  }}
+                                />
+                              </div>
+
+                              <div className="full-width timer-preset-row">
+                                <span className="preset-label">Quick Duration Presets:</span>
+                                <div className="preset-buttons-wrap">
+                                  {[
+                                    { label: '+2h', hours: 2 },
+                                    { label: '+6h', hours: 6 },
+                                    { label: '+12h', hours: 12 },
+                                    { label: '+24h (1 Day)', hours: 24 },
+                                    { label: '+48h (2 Days)', hours: 48 },
+                                    { label: '+7 Days', hours: 168 }
+                                  ].map(p => (
+                                    <button
+                                      key={p.label}
+                                      type="button"
+                                      className="preset-time-chip"
+                                      onClick={() => updateHeroBanner(slide.id, { saleTimer: Date.now() + p.hours * 3600 * 1000, hasTimer: true })}
+                                    >
+                                      {p.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="full-width live-timer-preview-box">
+                                <span className="live-preview-badge">Live Storefront Preview:</span>
+                                <div className="preview-clock-wrap">
+                                  <span>{slide.timerLabel || 'Limited Deal Ends in:'}</span>
+                                  <CountdownTimer endTime={slide.saleTimer || (Date.now() + 24 * 3600 * 1000)} />
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* ========================================================
+               TAB 5: COUNTDOWN & FLASH DEAL TIMERS HUB
+               ======================================================== */}
+            {adminTab === 'timers' && (
+              <div className="admin-tab-view">
+                <div className="admin-view-header">
+                  <div>
+                    <h1>Countdown Timers & Flash Deals Control Center</h1>
+                    <p>Manage sale countdowns, flash lightning deals, duration timers, and live storefront clocks.</p>
+                  </div>
+                </div>
+
+                {/* 1. Flash Deals Main Timer Card */}
+                <div className="admin-edit-card margin-bottom">
+                  <div className="admin-card-head">
+                    <div className="timer-title-group">
+                      <div className="timer-icon-bubble">⚡</div>
+                      <div>
+                        <h3>Flash Deals Section Countdown</h3>
+                        <small>Controls the countdown clock and featured items on the storefront Flash Deal shelf</small>
+                      </div>
+                    </div>
+
+                    <button
+                      className={`tax-vis-toggle ${flashDealConfig?.enabled ? 'on' : 'off'}`}
+                      onClick={() => updateFlashDealConfig({ enabled: !flashDealConfig?.enabled })}
+                    >
+                      {flashDealConfig?.enabled ? <><FiCheck /> Flash Sale Active</> : <><FiX /> Disabled</>}
+                    </button>
+                  </div>
+
+                  {/* Live Clock Strip */}
+                  <div className="flash-timer-live-bar margin-top">
+                    <div className="live-clock-left">
+                      <span className="live-pulse-dot" />
+                      <div>
+                        <span className="live-status-label">Current Countdown Status</span>
+                        <strong>{flashDealConfig?.title || 'Flash Deals'} • Closes In:</strong>
+                      </div>
+                    </div>
+
+                    <div className="live-clock-display">
+                      <CountdownTimer endTime={flashDealConfig?.endTime || (Date.now() + 8 * 3600 * 1000)} />
+                    </div>
+
+                    <button 
+                      className="reset-timer-btn"
+                      onClick={() => updateFlashDealConfig({ endTime: Date.now() + (flashDealConfig?.hoursDuration || 8) * 3600 * 1000 })}
+                      title="Restart timer with default duration from right now"
+                    >
+                      <FiClock /> Restart Timer (From Now)
+                    </button>
+                  </div>
+
+                  <div className="admin-form-grid margin-top-lg">
+                    <div>
+                      <label>Flash Section Title</label>
+                      <input 
+                        type="text"
+                        value={flashDealConfig?.title || ''}
+                        onChange={(e) => updateFlashDealConfig({ title: e.target.value })}
+                        placeholder="e.g. Flash Deals"
+                      />
+                    </div>
+
+                    <div>
+                      <label>Subtitle / Urgency Tagline</label>
+                      <input 
+                        type="text"
+                        value={flashDealConfig?.subtitle || ''}
+                        onChange={(e) => updateFlashDealConfig({ subtitle: e.target.value })}
+                        placeholder="e.g. Limited time lightning offers — hurry!"
+                      />
+                    </div>
+
+                    <div>
+                      <label>Exact Target Expiration Date & Time</label>
+                      <input 
+                        type="datetime-local"
+                        value={toDatetimeLocal(flashDealConfig?.endTime || (Date.now() + 8 * 3600 * 1000))}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val) {
+                            const ms = new Date(val).getTime();
+                            if (!isNaN(ms)) {
+                              updateFlashDealConfig({ endTime: ms });
+                            }
+                          }
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label>Badge Ribbon Text</label>
+                      <input 
+                        type="text"
+                        value={flashDealConfig?.badgeText || ''}
+                        onChange={(e) => updateFlashDealConfig({ badgeText: e.target.value })}
+                        placeholder="e.g. FLASH DEAL"
+                      />
+                    </div>
+
+                    {/* Quick Duration Buttons */}
+                    <div className="full-width timer-preset-row">
+                      <span className="preset-label">Quick Duration Presets (Set from Current Time):</span>
+                      <div className="preset-buttons-wrap">
+                        {[
+                          { label: '1 Hour Flash', hours: 1 },
+                          { label: '4 Hours Lightning', hours: 4 },
+                          { label: '8 Hours (Standard)', hours: 8 },
+                          { label: '12 Hours (Half Day)', hours: 12 },
+                          { label: '24 Hours (Full Day)', hours: 24 },
+                          { label: '48 Hours (Weekend Deal)', hours: 48 },
+                          { label: '7 Days Mega Sale', hours: 168 }
+                        ].map(p => (
+                          <button
+                            key={p.label}
+                            type="button"
+                            className="preset-time-chip"
+                            onClick={() => updateFlashDealConfig({ 
+                              endTime: Date.now() + p.hours * 3600 * 1000, 
+                              hoursDuration: p.hours,
+                              enabled: true 
+                            })}
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Flash Deal Featured Products Multi-Picker */}
+                  <div className="flash-products-selector-section margin-top-lg">
+                    <h4>⚡ Featured Flash Sale Products ({safeProducts.filter(p => (flashDealConfig?.productIds || []).includes(p.id)).length} Selected)</h4>
+                    <p>Choose which catalog items appear on the home page Flash Deal shelf with urgency badges:</p>
+                    
+                    <div className="flash-prods-picker-grid margin-top">
+                      {safeProducts.slice(0, 36).map(prod => {
+                        const isSelected = (flashDealConfig?.productIds || []).includes(prod.id);
+                        return (
+                          <div 
+                            key={prod.id} 
+                            className={`flash-picker-card ${isSelected ? 'selected' : ''}`}
+                            onClick={() => {
+                              const currentIds = flashDealConfig?.productIds || [101, 102, 201, 301];
+                              const newIds = isSelected 
+                                ? currentIds.filter(id => id !== prod.id)
+                                : [...currentIds, prod.id];
+                              updateFlashDealConfig({ productIds: newIds });
+                            }}
+                          >
+                            <img src={prod.image || ''} alt={prod.name} className="picker-thumb" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=100&q=80'; }} />
+                            <div className="picker-info">
+                              <strong>{prod.name}</strong>
+                              <span>₹{formatPrice(prod.price)} • {prod.category}</span>
+                            </div>
+                            <span className={`picker-checkbox ${isSelected ? 'checked' : ''}`}>
+                              {isSelected ? '✓' : '+'}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Hero Carousel Timers Quick Matrix */}
+                <div className="admin-edit-card">
+                  <h3>🖼️ Hero Carousel Banner Timers Overview</h3>
+                  <p>All active carousel slides and their respective deal countdown timers:</p>
+
+                  <div className="admin-table-wrapper margin-top">
+                    <table className="admin-data-table">
+                      <thead>
+                        <tr>
+                          <th>Slide Headline</th>
+                          <th>Timer Status</th>
+                          <th>Timer Copy Label</th>
+                          <th>Live Countdown Clock</th>
+                          <th>Quick Timer Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {safeBanners.map((slide, idx) => (
+                          <tr key={slide.id}>
+                            <td>
+                              <strong>Slide #{idx + 1}: {slide.headline || 'Banner'}</strong>
+                              <small>{slide.tagline}</small>
+                            </td>
+
+                            <td>
+                              <button
+                                className={`tax-vis-toggle ${slide.hasTimer ? 'on' : 'off'}`}
+                                onClick={() => updateHeroBanner(slide.id, { hasTimer: !slide.hasTimer })}
+                              >
+                                {slide.hasTimer ? <><FiCheck /> Active</> : <><FiX /> Off</>}
+                              </button>
+                            </td>
+
+                            <td>
+                              <input 
+                                type="text"
+                                className="table-inline-input"
+                                value={slide.timerLabel || 'Limited Deal Ends in:'}
+                                onChange={(e) => updateHeroBanner(slide.id, { timerLabel: e.target.value })}
+                              />
+                            </td>
+
+                            <td>
+                              {slide.hasTimer ? (
+                                <div className="table-clock-badge">
+                                  <CountdownTimer endTime={slide.saleTimer || (Date.now() + 24 * 3600 * 1000)} />
+                                </div>
+                              ) : (
+                                <span className="text-muted">Timer Inactive</span>
+                              )}
+                            </td>
+
+                            <td>
+                              <div className="table-action-btns">
+                                <button
+                                  className="action-icon-btn edit"
+                                  onClick={() => updateHeroBanner(slide.id, { saleTimer: Date.now() + 24 * 3600 * 1000, hasTimer: true })}
+                                  title="Reset timer to +24 Hours from now"
+                                >
+                                  <FiClock /> +24h Reset
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             )}

@@ -86,12 +86,51 @@ export default function HomePage() {
     return homePageConfig?.sections?.[sectionName] !== false;
   };
 
+  const [aboveFoldView, setAboveFoldView] = useState('all'); // 'all', 'hero', 'sponsored', 'flash'
+
   return (
     <div className="home-page">
-      {showSection('hero') && <HeroCarousel />}
+      {/* Above-the-fold Progressive Disclosure Container */}
+      <div className="above-fold-hub">
+        <div className="above-fold-selector-bar">
+          <button 
+            className={`above-fold-chip ${aboveFoldView === 'all' ? 'active' : ''}`}
+            onClick={() => setAboveFoldView('all')}
+          >
+            🌟 All Featured Spotlights
+          </button>
+          <button 
+            className={`above-fold-chip ${aboveFoldView === 'hero' ? 'active' : ''}`}
+            onClick={() => setAboveFoldView('hero')}
+          >
+            🖼️ Flagship Carousel
+          </button>
+          <button 
+            className={`above-fold-chip ${aboveFoldView === 'flash' ? 'active' : ''}`}
+            onClick={() => setAboveFoldView('flash')}
+          >
+            ⚡ Flash Deals & Timers
+          </button>
+          <button 
+            className={`above-fold-chip ${aboveFoldView === 'sponsored' ? 'active' : ''}`}
+            onClick={() => setAboveFoldView('sponsored')}
+          >
+            💎 Sponsored Hub
+          </button>
+        </div>
 
-      {/* Featured Sponsored Advertisements & Deals Multi-Tier Hub */}
-      <SponsoredAdHub />
+        {(aboveFoldView === 'all' || aboveFoldView === 'hero') && showSection('hero') && (
+          <HeroCarousel />
+        )}
+
+        {(aboveFoldView === 'all' || aboveFoldView === 'flash') && showSection('flashDeal') && (
+          <FlashDealBanner />
+        )}
+
+        {(aboveFoldView === 'all' || aboveFoldView === 'sponsored') && (
+          <SponsoredAdHub />
+        )}
+      </div>
 
       {/* NEW: Visual "Shop by Category" Grid */}
       {showSection('categoryGrid') && homePageConfig?.categoryGrid && (
@@ -144,7 +183,6 @@ export default function HomePage() {
       )}
 
       {showSection('recent') && <RecentItems />}
-      {showSection('flashDeal') && <FlashDealBanner />}
       
       {showSection('tabsShowcase') && homePageConfig?.tabsShowcase && (
         <section className="home-section">

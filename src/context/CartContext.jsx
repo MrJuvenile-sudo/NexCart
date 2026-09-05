@@ -35,6 +35,8 @@ const DEFAULT_HERO_BANNERS = [
     image: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&w=1400&q=80',
     accent: '#FFE500',
     saleTimer: Date.now() + 24 * 60 * 60 * 1000,
+    hasTimer: true,
+    timerLabel: 'Limited Deal Ends in:',
     visible: true,
   },
   {
@@ -46,6 +48,9 @@ const DEFAULT_HERO_BANNERS = [
     ctaLink: '/products?category=Fashion',
     image: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1400&q=80',
     accent: '#E11D48',
+    saleTimer: Date.now() + 12 * 60 * 60 * 1000,
+    hasTimer: false,
+    timerLabel: 'Fashion Sale Ends in:',
     visible: true,
   },
   {
@@ -57,9 +62,22 @@ const DEFAULT_HERO_BANNERS = [
     ctaLink: '/products?category=Home%20%26%20Living',
     image: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?auto=format&fit=crop&w=1400&q=80',
     accent: '#D4AF37',
+    saleTimer: Date.now() + 48 * 60 * 60 * 1000,
+    hasTimer: false,
+    timerLabel: 'Mega Living Deal Closes in:',
     visible: true,
   },
 ];
+
+const DEFAULT_FLASH_DEAL_CONFIG = {
+  enabled: true,
+  title: "Flash Deals",
+  subtitle: "Limited time lightning offers — grab before timer expires!",
+  endTime: Date.now() + 8 * 60 * 60 * 1000,
+  hoursDuration: 8,
+  productIds: [101, 102, 201, 301, 401, 501],
+  badgeText: "FLASH DEAL"
+};
 
 const DEFAULT_TOP_TICKER = {
   enabled: true,
@@ -329,6 +347,11 @@ export function CartProvider({ children }) {
 
   const [selectedCategory, setSelectedCategory] = useState('For You');
 
+  const [flashDealConfig, setFlashDealConfig] = useState(() => {
+    const local = localStorage.getItem('nexcart_flash_deal_config');
+    return local ? JSON.parse(local) : DEFAULT_FLASH_DEAL_CONFIG;
+  });
+
   const [homePageConfig, setHomePageConfig] = useState(() => {
     const local = localStorage.getItem('nexcart_homepage_config');
     return local ? JSON.parse(local) : DEFAULT_HOMEPAGE_CONFIG;
@@ -387,6 +410,10 @@ export function CartProvider({ children }) {
     localStorage.setItem('nexcart_homepage_config', JSON.stringify(homePageConfig));
   }, [homePageConfig]);
 
+  useEffect(() => {
+    localStorage.setItem('nexcart_flash_deal_config', JSON.stringify(flashDealConfig));
+  }, [flashDealConfig]);
+
   const addToCart = (product, qty = 1) => {
     if (!product) return false;
 
@@ -408,6 +435,7 @@ export function CartProvider({ children }) {
     });
 
     addRecentItem(product);
+    setCartDrawerOpen(true);
     showToast(`Added "${product.name}" to shopping bag!`, 'success');
     return true;
   };
@@ -430,6 +458,7 @@ export function CartProvider({ children }) {
         return [...prev, { ...product, qty: qty || 1 }];
       });
       addRecentItem(product);
+      setCartDrawerOpen(true);
       showToast(`Added "${product.name}" to shopping bag!`, 'success');
       setPendingAddToCart(null);
     }
@@ -470,6 +499,24 @@ export function CartProvider({ children }) {
     });
   };
 
+  // Cross-tab Synchronization
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'nexcart_cart' && e.newValue) {
+        try {
+          setCart(JSON.parse(e.newValue));
+        } catch {}
+      }
+      if (e.key === 'nexcart_wishlist' && e.newValue) {
+        try {
+          setWishlist(JSON.parse(e.newValue));
+        } catch {}
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   const moveAllWishlistToBag = () => {
     wishlist.forEach(prod => addToCart(prod, 1));
     showToast(`Moved ${wishlist.length} saved items to your shopping bag!`, 'success');
@@ -482,16 +529,27 @@ export function CartProvider({ children }) {
     });
   };
 
+  const subtotal = useMemo(() => {
+    return cart.reduce((sum, item) => sum + (Number(item.price) || 0) * (Number(item.qty) || 1), 0);
+  }, [cart]);
+
   const applyCoupon = (code) => {
+    if (!code || typeof code !== 'string') return false;
     const codeUpper = code.trim().toUpperCase();
     const found = PROMO_CODES[codeUpper];
-    if (found) {
-      setAppliedCoupon({ code: codeUpper, ...found });
-      showToast(`Coupon "${codeUpper}" applied successfully!`, 'success');
-      return true;
+    if (!found) {
+      showToast('Invalid promo code. Try WELCOME20 or NEX10.', 'error');
+      return false;
     }
-    showToast('Invalid promo code. Try WELCOME20 or FREEDOM25.', 'error');
-    return false;
+
+    if (subtotal < (found.minAmount || 0)) {
+      showToast(`Coupon "${codeUpper}" requires a minimum order subtotal of ₹${(found.minAmount || 0).toLocaleString('en-IN')}.`, 'error');
+      return false;
+    }
+
+    setAppliedCoupon({ code: codeUpper, ...found });
+    showToast(`Coupon "${codeUpper}" applied successfully!`, 'success');
+    return true;
   };
 
   const removeCoupon = () => {
@@ -499,12 +557,14 @@ export function CartProvider({ children }) {
     showToast('Coupon removed', 'info');
   };
 
-  const subtotal = useMemo(() => {
-    return cart.reduce((sum, item) => sum + item.price * item.qty, 0);
-  }, [cart]);
-
   const discountAmount = useMemo(() => {
     if (!appliedCoupon) return 0;
+    // Gated behind minimum spend threshold
+    if (subtotal < (appliedCoupon.minAmount || 0)) return 0;
+
+    if (appliedCoupon.discountPercent) {
+      return Math.round((subtotal * appliedCoupon.discountPercent) / 100);
+    }
     if (appliedCoupon.type === 'percent') {
       return Math.round((subtotal * appliedCoupon.value) / 100);
     }
@@ -514,15 +574,20 @@ export function CartProvider({ children }) {
     return 0;
   }, [subtotal, appliedCoupon]);
 
+  const postDiscountSubtotal = useMemo(() => {
+    return Math.max(0, subtotal - discountAmount);
+  }, [subtotal, discountAmount]);
+
   const shippingCost = useMemo(() => {
     if (cart.length === 0) return 0;
-    if (subtotal >= 999 || appliedCoupon?.freeShipping) return 0;
+    // Post-discount delivery threshold: Free delivery for ₹999+ post-discount total or free shipping coupon
+    if (postDiscountSubtotal >= 999 || appliedCoupon?.freeShipping) return 0;
     return 99;
-  }, [subtotal, cart, appliedCoupon]);
+  }, [postDiscountSubtotal, cart, appliedCoupon]);
 
   const totalAmount = useMemo(() => {
-    return Math.max(0, subtotal - discountAmount + shippingCost);
-  }, [subtotal, discountAmount, shippingCost]);
+    return Math.max(0, postDiscountSubtotal + shippingCost);
+  }, [postDiscountSubtotal, shippingCost]);
 
   const cartCount = useMemo(() => {
     return cart.reduce((sum, item) => sum + item.qty, 0);
@@ -600,6 +665,11 @@ export function CartProvider({ children }) {
   const updateStoreInfo = (updates) => {
     setStoreInfo(prev => ({ ...prev, ...updates }));
     showToast('Store information & social links updated live!', 'success');
+  };
+
+  const updateFlashDealConfig = (updates) => {
+    setFlashDealConfig(prev => ({ ...prev, ...updates }));
+    showToast('Flash deals countdown & settings updated live!', 'success');
   };
 
   const toggleSponsored = (id) => {
@@ -754,6 +824,8 @@ export function CartProvider({ children }) {
         updateTopTicker,
         updatePromoPopup,
         updateStoreInfo,
+        flashDealConfig,
+        updateFlashDealConfig,
         toggleSponsored,
         homePageConfig,
         updateHomePageConfig,

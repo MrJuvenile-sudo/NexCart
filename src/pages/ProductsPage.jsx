@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { 
   FiSliders, FiGrid, FiList, FiX, FiSearch, FiChevronRight 
@@ -6,93 +6,121 @@ import {
 import { useCart } from '../context/CartContext';
 import { CATEGORIES } from '../data/mockData';
 import ProductCard from '../components/ProductCard';
+import { sanitizeSearchInput, searchCatalogProducts } from '../utils/searchEngine';
+
+const PAGE_SIZE = 24;
 
 export default function ProductsPage() {
   const { products } = useCart();
   const [searchParams, setSearchParams] = useSearchParams();
-
-  // State from URL query params
-  const initialCategory = searchParams.get('category') || 'All';
-  const initialSearch = searchParams.get('search') || '';
-
-  const [selectedCategory, setSelectedCategory] = useState(initialCategory);
-  const [searchQuery, setSearchQuery] = useState(initialSearch);
-  const [pricePreset, setPricePreset] = useState('all'); // all, under1000, 1000-3000, above3000
-  const [minRating, setMinRating] = useState(0);
-  const [selectedBrands, setSelectedBrands] = useState([]);
-  const [inStockOnly, setInStockOnly] = useState(false);
-  const [sortBy, setSortBy] = useState('featured'); // featured, price-low, price-high, rating
-  const [viewLayout, setViewLayout] = useState('grid'); // grid, list
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  useEffect(() => {
-    const cat = searchParams.get('category');
-    const srch = searchParams.get('search');
-    if (cat) setSelectedCategory(cat);
-    if (srch !== null) setSearchQuery(srch);
+  // 1. Fully URL-Driven Filter State (Atomically Linkable & Bookmarkable)
+  const selectedCategory = searchParams.get('category') || 'All';
+  const searchQuery = searchParams.get('search') || '';
+  const pricePreset = searchParams.get('price') || 'all'; // all, under1000, 1000-3000, above3000
+  const minRating = Number(searchParams.get('rating')) || 0;
+  const selectedBrands = useMemo(() => {
+    const brandsParam = searchParams.get('brands');
+    return brandsParam ? brandsParam.split(',').filter(Boolean) : [];
   }, [searchParams]);
+  const inStockOnly = searchParams.get('inStock') === 'true';
+  const sortBy = searchParams.get('sort') || 'featured'; // featured, price-low, price-high, rating
+  const viewLayout = searchParams.get('layout') || 'grid';
+
+  // Helper to update search params atomically
+  const updateFilterParam = useCallback((updates) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      Object.entries(updates).forEach(([key, val]) => {
+        if (val === null || val === undefined || val === '' || val === 'all' || val === 'All' || val === 0 || (Array.isArray(val) && val.length === 0)) {
+          next.delete(key);
+        } else if (Array.isArray(val)) {
+          next.set(key, val.join(','));
+        } else {
+          next.set(key, String(val));
+        }
+      });
+      return next;
+    });
+    setVisibleCount(PAGE_SIZE);
+  }, [setSearchParams]);
 
   // Extract all unique brands
   const allBrands = useMemo(() => {
-    return Array.from(new Set(products.map(p => p.brand))).sort();
+    const safeProds = Array.isArray(products) ? products : [];
+    return Array.from(new Set(safeProds.map(p => p.brand).filter(Boolean))).sort();
   }, [products]);
 
+  const handleCategorySelect = (cat) => {
+    updateFilterParam({ category: cat });
+  };
+
   const handleBrandToggle = (brand) => {
-    setSelectedBrands(prev => 
-      prev.includes(brand) ? prev.filter(b => b !== brand) : [...prev, brand]
-    );
+    const nextBrands = selectedBrands.includes(brand)
+      ? selectedBrands.filter(b => b !== brand)
+      : [...selectedBrands, brand];
+    updateFilterParam({ brands: nextBrands });
   };
 
   const handleResetFilters = () => {
-    setSelectedCategory('All');
-    setSearchQuery('');
-    setPricePreset('all');
-    setMinRating(0);
-    setSelectedBrands([]);
-    setInStockOnly(false);
-    setSortBy('featured');
     setSearchParams({});
+    setVisibleCount(PAGE_SIZE);
   };
 
-  // Filter & Sort Logic
+  // 2. Atomic Filter & Tokenized Search Pipeline
   const filteredProducts = useMemo(() => {
-    return products.filter(p => {
-      // Category filter
-      if (selectedCategory !== 'All' && p.category !== selectedCategory) return false;
+    let pool = Array.isArray(products) ? products : [];
 
-      // Search filter
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase();
-        const match = `${p.name} ${p.brand} ${p.category} ${p.description || ''}`.toLowerCase().includes(query);
-        if (!match) return false;
-      }
+    // Category filter
+    if (selectedCategory && selectedCategory !== 'All') {
+      const catLower = selectedCategory.toLowerCase();
+      pool = pool.filter(p => (p.category || '').toLowerCase().includes(catLower));
+    }
 
+    // Tokenized fuzzy multi-attribute search
+    if (searchQuery.trim()) {
+      pool = searchCatalogProducts(pool, searchQuery);
+    }
+
+    // Secondary filters
+    return pool.filter(p => {
       // Price preset
       if (pricePreset === 'under1000' && p.price >= 1000) return false;
       if (pricePreset === '1000-3000' && (p.price < 1000 || p.price > 3000)) return false;
       if (pricePreset === 'above3000' && p.price <= 3000) return false;
 
-      // maxPrice query param filter
-      const maxPriceParam = searchParams.get('maxPrice');
-      if (maxPriceParam && p.price > Number(maxPriceParam)) return false;
-
       // Rating filter
-      if (minRating > 0 && p.rating < minRating) return false;
+      if (minRating > 0 && (p.rating || 0) < minRating) return false;
 
       // Brand filter
       if (selectedBrands.length > 0 && !selectedBrands.includes(p.brand)) return false;
 
       // Stock filter
-      if (inStockOnly && p.stock <= 0) return false;
+      if (inStockOnly && (p.stock || 0) <= 0) return false;
 
       return true;
     }).sort((a, b) => {
       if (sortBy === 'price-low') return a.price - b.price;
       if (sortBy === 'price-high') return b.price - a.price;
-      if (sortBy === 'rating') return b.rating - a.rating;
-      return a.id - b.id; // default featured
+      if (sortBy === 'rating') return (b.rating || 0) - (a.rating || 0);
+      return (a.searchScore && b.searchScore) ? (b.searchScore - a.searchScore) : (a.id - b.id);
     });
   }, [products, selectedCategory, searchQuery, pricePreset, minRating, selectedBrands, inStockOnly, sortBy]);
+
+  // Virtualized progressive slice to maintain 60fps rendering
+  const paginatedProducts = useMemo(() => {
+    return filteredProducts.slice(0, visibleCount);
+  }, [filteredProducts, visibleCount]);
+
+  const hasMore = visibleCount < filteredProducts.length;
+
+  const handleLoadMore = () => {
+    setVisibleCount(prev => Math.min(prev + PAGE_SIZE, filteredProducts.length));
+  };
+
+  const hasActiveFilters = selectedCategory !== 'All' || searchQuery !== '' || pricePreset !== 'all' || minRating > 0 || selectedBrands.length > 0 || inStockOnly;
 
   return (
     <div className="catalog-page-container">
@@ -104,7 +132,7 @@ export default function ProductsPage() {
         <div className="heading-row">
           <div>
             <h1>Explore Catalogue</h1>
-            <p>Showing <strong>{filteredProducts.length}</strong> products</p>
+            <p>Showing <strong>{filteredProducts.length}</strong> verified products</p>
           </div>
 
           <div className="header-controls">
@@ -112,15 +140,17 @@ export default function ProductsPage() {
             <div className="layout-toggle-btns">
               <button 
                 className={viewLayout === 'grid' ? 'active' : ''} 
-                onClick={() => setViewLayout('grid')}
+                onClick={() => updateFilterParam({ layout: 'grid' })}
                 title="Grid View"
+                aria-label="Grid View"
               >
                 <FiGrid />
               </button>
               <button 
                 className={viewLayout === 'list' ? 'active' : ''} 
-                onClick={() => setViewLayout('list')}
+                onClick={() => updateFilterParam({ layout: 'list' })}
                 title="List View"
+                aria-label="List View"
               >
                 <FiList />
               </button>
@@ -131,13 +161,16 @@ export default function ProductsPage() {
               className="mobile-filter-trigger-btn"
               onClick={() => setFilterDrawerOpen(true)}
             >
-              <FiSliders /> Filters ({selectedCategory !== 'All' ? 1 : 0})
+              <FiSliders /> Filters {hasActiveFilters ? '(Active)' : ''}
             </button>
 
             {/* Sort Dropdown */}
             <div className="sort-dropdown-container">
               <label>Sort by:</label>
-              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+              <select 
+                value={sortBy} 
+                onChange={(e) => updateFilterParam({ sort: e.target.value })}
+              >
                 <option value="featured">Featured / Default</option>
                 <option value="price-low">Price: Low to High</option>
                 <option value="price-high">Price: High to Low</option>
@@ -154,10 +187,7 @@ export default function ProductsPage() {
           <button 
             key={cat}
             className={`cat-pill ${selectedCategory === cat ? 'active' : ''}`}
-            onClick={() => {
-              setSelectedCategory(cat);
-              setSearchParams(cat === 'All' ? {} : { category: cat });
-            }}
+            onClick={() => handleCategorySelect(cat)}
           >
             {cat}
           </button>
@@ -169,12 +199,12 @@ export default function ProductsPage() {
         <aside className={`catalog-filters-sidebar ${filterDrawerOpen ? 'drawer-open' : ''}`}>
           <div className="sidebar-header">
             <h3><FiSliders /> Filters</h3>
-            <button className="mobile-close-filters" onClick={() => setFilterDrawerOpen(false)}>
+            <button className="mobile-close-filters" onClick={() => setFilterDrawerOpen(false)} aria-label="Close filters">
               <FiX />
             </button>
           </div>
 
-          {(selectedCategory !== 'All' || searchQuery || pricePreset !== 'all' || selectedBrands.length > 0 || minRating > 0) && (
+          {hasActiveFilters && (
             <button className="clear-all-filters-btn" onClick={handleResetFilters}>
               Reset All Filters
             </button>
@@ -187,9 +217,9 @@ export default function ProductsPage() {
               <FiSearch />
               <input 
                 type="text" 
-                placeholder="Search items..." 
+                placeholder="Search items, 5G, ANC, Nike..." 
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => updateFilterParam({ search: sanitizeSearchInput(e.target.value) })}
               />
             </div>
           </div>
@@ -204,10 +234,7 @@ export default function ProductsPage() {
                     type="radio" 
                     name="cat-radio"
                     checked={selectedCategory === cat}
-                    onChange={() => {
-                      setSelectedCategory(cat);
-                      setSearchParams(cat === 'All' ? {} : { category: cat });
-                    }}
+                    onChange={() => handleCategorySelect(cat)}
                   />
                   <span>{cat}</span>
                 </label>
@@ -226,7 +253,7 @@ export default function ProductsPage() {
                   type="radio" 
                   name="price-radio"
                   checked={pricePreset === 'all'}
-                  onChange={() => setPricePreset('all')}
+                  onChange={() => updateFilterParam({ price: 'all' })}
                 />
                 <span>All Prices</span>
               </label>
@@ -235,7 +262,7 @@ export default function ProductsPage() {
                   type="radio" 
                   name="price-radio"
                   checked={pricePreset === 'under1000'}
-                  onChange={() => setPricePreset('under1000')}
+                  onChange={() => updateFilterParam({ price: 'under1000' })}
                 />
                 <span>Under ₹1,000</span>
               </label>
@@ -244,7 +271,7 @@ export default function ProductsPage() {
                   type="radio" 
                   name="price-radio"
                   checked={pricePreset === '1000-3000'}
-                  onChange={() => setPricePreset('1000-3000')}
+                  onChange={() => updateFilterParam({ price: '1000-3000' })}
                 />
                 <span>₹1,000 - ₹3,000</span>
               </label>
@@ -253,7 +280,7 @@ export default function ProductsPage() {
                   type="radio" 
                   name="price-radio"
                   checked={pricePreset === 'above3000'}
-                  onChange={() => setPricePreset('above3000')}
+                  onChange={() => updateFilterParam({ price: 'above3000' })}
                 />
                 <span>Above ₹3,000</span>
               </label>
@@ -271,7 +298,7 @@ export default function ProductsPage() {
                   type="radio" 
                   name="rating-radio"
                   checked={minRating === 0}
-                  onChange={() => setMinRating(0)}
+                  onChange={() => updateFilterParam({ rating: 0 })}
                 />
                 <span>All Ratings</span>
               </label>
@@ -280,7 +307,7 @@ export default function ProductsPage() {
                   type="radio" 
                   name="rating-radio"
                   checked={minRating === 4}
-                  onChange={() => setMinRating(4)}
+                  onChange={() => updateFilterParam({ rating: 4 })}
                 />
                 <span>4★ & Above</span>
               </label>
@@ -289,7 +316,7 @@ export default function ProductsPage() {
                   type="radio" 
                   name="rating-radio"
                   checked={minRating === 4.5}
-                  onChange={() => setMinRating(4.5)}
+                  onChange={() => updateFilterParam({ rating: 4.5 })}
                 />
                 <span>4.5★ & Above</span>
               </label>
@@ -328,11 +355,25 @@ export default function ProductsPage() {
               </button>
             </div>
           ) : (
-            <div className={viewLayout === 'list' ? 'products-list-layout' : 'products-grid-layout'}>
-              {filteredProducts.map(product => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </div>
+            <>
+              <div className={viewLayout === 'list' ? 'products-list-layout' : 'products-grid-layout'}>
+                {paginatedProducts.map(product => (
+                  <ProductCard key={product.id} product={product} />
+                ))}
+              </div>
+
+              {hasMore && (
+                <div className="load-more-container" style={{ textAlign: 'center', marginTop: '30px', marginBottom: '20px' }}>
+                  <button 
+                    className="cta-btn secondary"
+                    onClick={handleLoadMore}
+                    style={{ minWidth: '200px', minHeight: '44px', fontWeight: '700' }}
+                  >
+                    Load More Products ({paginatedProducts.length} of {filteredProducts.length})
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </main>
       </div>

@@ -7,6 +7,7 @@ import {
 } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import { sanitizeSearchInput, searchCatalogProducts } from '../utils/searchEngine';
 
 const TRENDING_SEARCHES = [
   'iPhone 16 Pro Max',
@@ -64,13 +65,14 @@ export default function Navbar() {
 
   const safeProducts = Array.isArray(products) ? products : [];
   const searchMatches = searchQuery.trim()
-    ? safeProducts.filter(p => p && `${p.name || ''} ${p.brand || ''} ${p.category || ''}`.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 5)
+    ? searchCatalogProducts(safeProducts, searchQuery).slice(0, 6)
     : [];
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/products?search=${encodeURIComponent(searchQuery.trim())}`);
+    const cleanQuery = sanitizeSearchInput(searchQuery);
+    if (cleanQuery) {
+      navigate(`/products?search=${encodeURIComponent(cleanQuery)}`);
       setSearchFocused(false);
     }
   };
@@ -333,6 +335,85 @@ export default function Navbar() {
             </button>
           </div>
         </div>
+
+        {/* Mobile Navigation Slide-in Drawer */}
+        {mobileMenuOpen && (
+          <div className="mobile-nav-backdrop" onClick={() => setMobileMenuOpen(false)}>
+            <div className="mobile-nav-drawer" onClick={(e) => e.stopPropagation()}>
+              <div className="mobile-drawer-head">
+                <Link to="/" className="brand-logo" onClick={() => setMobileMenuOpen(false)}>
+                  <img src="/favicon.ico" alt="NexCart Logo" className="brand-logo-img" />
+                  <span className="brand-name">Nex<i>Cart</i></span>
+                  <span className="brand-plus-tag">PLUS ✦</span>
+                </Link>
+                <button className="mobile-drawer-close-btn" onClick={() => setMobileMenuOpen(false)} aria-label="Close menu">
+                  <FiX />
+                </button>
+              </div>
+
+              {/* User Greeting / Auth Bar */}
+              <div className="mobile-drawer-user-card">
+                {user ? (
+                  <div className="mobile-user-info-row">
+                    <div className="user-avatar-mini">{user.name?.[0]?.toUpperCase() || 'U'}</div>
+                    <div className="mobile-user-text">
+                      <strong>Hello, {user.name}</strong>
+                      <span className="vip-gold-chip">👑 VIP GOLD</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mobile-signin-prompt">
+                    <p>Sign in to unlock cart, wishlist & orders</p>
+                    <button className="mobile-signin-btn" onClick={() => { setMobileMenuOpen(false); navigate('/login'); }}>
+                      <FiUser /> Sign In / Register
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Mobile Quick Links */}
+              <div className="mobile-drawer-links-group">
+                <div className="mobile-group-label">STORE NAVIGATION</div>
+                <Link to="/products" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>
+                  <FiPackage /> <span>All Products Catalog</span>
+                </Link>
+                <Link to="/offers" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>
+                  <FiZap style={{ color: '#F59E0B' }} /> <span>Special Offers & Deals</span>
+                </Link>
+                <Link to="/wishlist" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>
+                  <FiHeart style={{ color: '#EF4444' }} /> <span>My Wishlist</span>
+                  {Array.isArray(wishlist) && wishlist.length > 0 && (
+                    <span className="mobile-badge">{wishlist.length}</span>
+                  )}
+                </Link>
+                <Link to="/track" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>
+                  <FiTruck style={{ color: '#10B981' }} /> <span>Track Order Status</span>
+                </Link>
+                <Link to="/my-account" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>
+                  <FiUser style={{ color: '#4F46E5' }} /> <span>Account & Orders</span>
+                </Link>
+                <Link to="/support" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>
+                  <FiHelpCircle style={{ color: '#06B6D4' }} /> <span>24x7 Customer Help</span>
+                </Link>
+              </div>
+
+              {/* Admin Panel Quick Link */}
+              <div className="mobile-drawer-admin-strip">
+                <Link to="/admin" className="mobile-admin-btn" onClick={() => setMobileMenuOpen(false)}>
+                  <FiShield /> <span>Admin Control Center</span>
+                </Link>
+              </div>
+
+              {user && (
+                <div className="mobile-drawer-footer">
+                  <button className="mobile-logout-btn" onClick={() => { setMobileMenuOpen(false); handleSignOut(); }}>
+                    <FiLogOut /> <span>Sign Out</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </header>
     </>
   );

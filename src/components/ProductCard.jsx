@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FiHeart, FiStar, FiPlus, FiEye } from 'react-icons/fi';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import ProductImage from './ProductImage';
 
 export default function ProductCard({ product }) {
   const { addToCart, triggerAuthModalForProduct, wishlist, toggleWishlist, setQuickViewProduct } = useCart();
@@ -45,11 +46,12 @@ export default function ProductCard({ product }) {
             toggleWishlist(product);
           }}
           title={isSaved ? "Remove from Wishlist" : "Save to Wishlist"}
+          aria-label={isSaved ? "Remove from Wishlist" : "Save to Wishlist"}
         >
           <FiHeart />
         </button>
 
-        <img 
+        <ProductImage 
           src={product.image || ''} 
           alt={product.name || 'Product'} 
           onClick={() => navigate(`/product/${product.id}`)}

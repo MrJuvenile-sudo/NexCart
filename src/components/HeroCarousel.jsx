@@ -50,10 +50,10 @@ export default function HeroCarousel() {
             <span className="carousel-eyebrow-flagship" style={{ background: slide.accent || '#FFE500', color: '#18181B' }}>
               <FiZap className="pulse-icon" /> {slide.tagline}
             </span>
-            {slide.saleTimer && (
+            {(slide.hasTimer !== false && slide.saleTimer) && (
               <div className="hero-countdown-pill">
                 <span className="timer-dot" />
-                <span className="timer-text">Limited Deal Ends in:</span>
+                <span className="timer-text">{slide.timerLabel || 'Limited Deal Ends in:'}</span>
                 <CountdownTimer endTime={slide.saleTimer} />
               </div>
             )}
