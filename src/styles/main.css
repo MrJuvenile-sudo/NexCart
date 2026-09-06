@@ -27,6 +27,12 @@
   padding: 0;
 }
 
+html, body {
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
+}
+
 body {
   font-family: var(--n-font);
   color: var(--n-ink);
@@ -49,6 +55,10 @@ button, input, select, textarea {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  position: relative;
 }
 
 .app-main-content {
@@ -8546,6 +8556,8 @@ button, input, select, textarea {
   left: 0;
   right: 0;
   width: 100%;
+  max-width: 100vw;
+  box-sizing: border-box;
   background: #ffffff;
   border-top: 1px solid #e2e8f0;
   border-bottom: 2px solid var(--category-accent, #2874f0);
@@ -8553,6 +8565,7 @@ button, input, select, textarea {
   z-index: 999;
   animation: megaDropdownSlide 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   transform-origin: top center;
+  overflow: hidden;
 }
 
 .myntra-mega-dropdown::before {
@@ -8577,25 +8590,33 @@ button, input, select, textarea {
 }
 
 .mega-dropdown-inner {
-  max-width: 1400px;
+  max-width: 1320px;
+  width: 100%;
+  box-sizing: border-box;
   margin: 0 auto;
-  padding: 24px 4%;
+  padding: 20px 24px;
   display: flex;
-  gap: 30px;
+  gap: 24px;
   justify-content: space-between;
+  align-items: stretch;
+  overflow: hidden;
 }
 
 .mega-columns-grid {
   display: flex;
-  gap: 25px;
-  flex: 1;
+  gap: 16px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .mega-nav-column {
-  flex: 1;
-  min-width: 170px;
+  flex: 1 1 0px;
+  min-width: 130px;
   border-right: 1px solid #f1f5f9;
-  padding-right: 20px;
+  padding-right: 14px;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .mega-nav-column:last-child {
@@ -8603,14 +8624,18 @@ button, input, select, textarea {
 }
 
 .mega-column-heading {
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin-bottom: 14px;
-  padding-bottom: 6px;
+  letter-spacing: 0.05em;
+  margin-bottom: 12px;
+  padding-bottom: 5px;
   border-bottom: 2px solid currentColor;
   display: inline-block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .mega-links-list {
@@ -8619,7 +8644,7 @@ button, input, select, textarea {
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
 }
 
 .mega-link-item {
@@ -8632,124 +8657,154 @@ button, input, select, textarea {
   width: 100%;
   text-align: left;
   cursor: pointer;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   color: #334155;
   font-weight: 500;
   transition: all 0.18s ease;
+  overflow: hidden;
+  gap: 6px;
 }
 
 .mega-link-item:hover {
   color: var(--category-accent, #2874f0);
-  transform: translateX(4px);
+  transform: translateX(3px);
   font-weight: 700;
 }
 
+.mega-link-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
 .mega-tag-badge {
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   font-weight: 800;
   padding: 1px 5px;
   border-radius: 4px;
   letter-spacing: 0.03em;
-  margin-left: 6px;
+  flex-shrink: 0;
 }
 
 /* Featured Products in Mega Menu */
 .mega-featured-products-panel {
-  width: 480px;
+  flex: 0 0 350px;
+  width: 350px;
+  max-width: 38%;
+  min-width: 0;
+  box-sizing: border-box;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  padding: 16px 18px;
+  border-radius: 12px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  overflow: hidden;
 }
 
 .mega-products-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
+  min-width: 0;
 }
 
 .mega-featured-title {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.82rem;
+  gap: 5px;
+  font-size: 0.78rem;
   font-weight: 800;
   color: #18181b;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .mega-featured-title .zap-icon {
   color: #f59e0b;
+  flex-shrink: 0;
 }
 
 .mega-view-all-btn {
   background: transparent;
   border: none;
   color: var(--category-accent, #2874f0);
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 700;
   display: flex;
   align-items: center;
   gap: 4px;
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: gap 0.2s ease;
 }
 
 .mega-view-all-btn:hover {
-  gap: 7px;
+  gap: 6px;
   text-decoration: underline;
 }
 
 .mega-products-cards-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .mega-product-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 8px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .mega-product-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08);
   border-color: #cbd5e1;
 }
 
 .mega-card-img-wrap {
   position: relative;
-  height: 95px;
+  height: 88px;
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border-radius: 6px;
+  border-radius: 5px;
   background: #f1f5f9;
 }
 
 .mega-card-img-wrap img {
   max-height: 100%;
   max-width: 100%;
-  object-fit: contain;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   transition: transform 0.25s ease;
 }
 
 .mega-product-card:hover .mega-card-img-wrap img {
-  transform: scale(1.08);
+  transform: scale(1.06);
 }
 
 .mega-product-off-chip {
@@ -8758,29 +8813,35 @@ button, input, select, textarea {
   left: 4px;
   background: #ef4444;
   color: #ffffff;
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   font-weight: 800;
   padding: 1px 4px;
   border-radius: 3px;
+  z-index: 1;
 }
 
 .mega-card-info {
-  margin-top: 6px;
+  margin-top: 5px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .mega-card-brand {
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   font-weight: 700;
   color: #64748b;
   text-transform: uppercase;
   display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .mega-card-name {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 700;
   color: #18181b;
-  margin: 2px 0 4px 0;
+  margin: 2px 0 3px 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -8790,7 +8851,9 @@ button, input, select, textarea {
   display: flex;
   align-items: baseline;
   gap: 4px;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .mega-card-price-row strong {
@@ -8798,7 +8861,7 @@ button, input, select, textarea {
 }
 
 .mega-card-old-price {
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   color: #94a3b8;
   text-decoration: line-through;
 }
@@ -8807,16 +8870,17 @@ button, input, select, textarea {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 6px;
+  margin-top: 5px;
   padding-top: 4px;
   border-top: 1px solid #f1f5f9;
+  min-width: 0;
 }
 
 .mega-rating-pill {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   font-weight: 700;
   color: #047857;
   background: #d1fae5;
@@ -8832,7 +8896,7 @@ button, input, select, textarea {
   background: #f1f5f9;
   border: 1px solid #e2e8f0;
   color: #18181b;
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   font-weight: 700;
   padding: 2px 6px;
   border-radius: 4px;
@@ -8841,6 +8905,8 @@ button, input, select, textarea {
   gap: 3px;
   cursor: pointer;
   transition: all 0.15s ease;
+  min-width: unset !important;
+  min-height: unset !important;
 }
 
 .mega-quick-add-btn:hover {
@@ -8852,22 +8918,22 @@ button, input, select, textarea {
 .mega-empty-product-hint {
   grid-column: 1 / -1;
   text-align: center;
-  padding: 20px;
+  padding: 16px;
 }
 
 .mega-empty-product-hint p {
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   color: #64748b;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .mega-explore-now-btn {
   background: var(--category-accent, #2874f0);
   color: #ffffff;
   border: none;
-  padding: 6px 14px;
+  padding: 5px 12px;
   border-radius: 20px;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 700;
   cursor: pointer;
 }
@@ -8876,18 +8942,27 @@ button, input, select, textarea {
 .mega-dropdown-bottom-strip {
   background: #f8fafc;
   border-top: 1px solid #e2e8f0;
-  padding: 10px 4%;
+  padding: 10px 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  max-width: 1400px;
+  max-width: 1320px;
   margin: 0 auto;
+  box-sizing: border-box;
+  width: 100%;
+  overflow: hidden;
+  gap: 16px;
 }
 
 .mega-promo-text {
   font-size: 0.8rem;
   font-weight: 700;
   color: #1e293b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
 }
 
 .mega-explore-pill-btn {
@@ -8902,6 +8977,8 @@ button, input, select, textarea {
   align-items: center;
   gap: 5px;
   cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
@@ -8910,9 +8987,28 @@ button, input, select, textarea {
   transform: translateX(2px);
 }
 
-@media (max-width: 1024px) {
+/* Responsive Breakpoints: Disable Desktop Mega-Menu on Small Screens & Touch Devices */
+@media (max-width: 1023px) {
+  .myntra-mega-dropdown {
+    display: none !important;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1200px) {
   .mega-featured-products-panel {
-    display: none;
+    flex: 0 0 290px;
+    width: 290px;
+  }
+  .mega-nav-column {
+    min-width: 110px;
+    padding-right: 10px;
+  }
+  .mega-columns-grid {
+    gap: 10px;
+  }
+  .mega-dropdown-inner {
+    padding: 16px 18px;
+    gap: 16px;
   }
 }
 

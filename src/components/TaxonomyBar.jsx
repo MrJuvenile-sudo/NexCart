@@ -84,6 +84,13 @@ export default function TaxonomyBar() {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
+    // Prevent desktop mega-menu from opening on mobile or touch devices
+    if (typeof window !== 'undefined') {
+      const isTouchOrMobile = window.innerWidth < 1024 || (window.matchMedia && !window.matchMedia('(hover: hover)').matches);
+      if (isTouchOrMobile) {
+        return;
+      }
+    }
     if (!cat || cat.id === 'all' || cat.name === 'For You') {
       setActiveDropdownCat(null);
       return;
@@ -168,7 +175,7 @@ export default function TaxonomyBar() {
     if (cId.includes('health') || cCat.includes('food')) return pCat.includes('food') || pCat.includes('health');
     if (cId.includes('auto') || cCat.includes('auto')) return pCat.includes('auto') || pCat.includes('car');
     return pCat.includes(cId) || pCat.includes(cCat);
-  }).slice(0, 3) : [];
+  }).slice(0, 2) : [];
 
   return (
     <nav 
@@ -316,7 +323,14 @@ export default function TaxonomyBar() {
                         }}
                       >
                         <div className="mega-card-img-wrap">
-                          <img src={p.image} alt={p.name} />
+                          <img 
+                            src={p.image} 
+                            alt={p.name}
+                            onError={(e) => {
+                              e.currentTarget.onerror = null;
+                              e.currentTarget.src = 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=300&q=80';
+                            }}
+                          />
                           {discountPercent > 0 && (
                             <span className="mega-product-off-chip">{discountPercent}% OFF</span>
                           )}
