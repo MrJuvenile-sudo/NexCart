@@ -106,16 +106,16 @@ export default function HomePage() {
             🖼️ Flagship Carousel
           </button>
           <button 
-            className={`above-fold-chip ${aboveFoldView === 'flash' ? 'active' : ''}`}
-            onClick={() => setAboveFoldView('flash')}
-          >
-            ⚡ Flash Deals & Timers
-          </button>
-          <button 
             className={`above-fold-chip ${aboveFoldView === 'sponsored' ? 'active' : ''}`}
             onClick={() => setAboveFoldView('sponsored')}
           >
             💎 Sponsored Hub
+          </button>
+          <button 
+            className={`above-fold-chip ${aboveFoldView === 'flash' ? 'active' : ''}`}
+            onClick={() => setAboveFoldView('flash')}
+          >
+            ⚡ Flash Deals & Timers
           </button>
         </div>
 
@@ -123,12 +123,12 @@ export default function HomePage() {
           <HeroCarousel />
         )}
 
-        {(aboveFoldView === 'all' || aboveFoldView === 'flash') && showSection('flashDeal') && (
-          <FlashDealBanner />
-        )}
-
         {(aboveFoldView === 'all' || aboveFoldView === 'sponsored') && (
           <SponsoredAdHub />
+        )}
+
+        {(aboveFoldView === 'all' || aboveFoldView === 'flash') && showSection('flashDeal') && (
+          <FlashDealBanner />
         )}
       </div>
 
